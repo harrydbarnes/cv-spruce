@@ -1,15 +1,24 @@
 import { memo } from "react";
-import { FileText, Mail, MessageSquare, TrendingUp, Target, ExternalLink } from "lucide-react";
+import { FileText, Mail, MessageSquare, TrendingUp, Target, ExternalLink, Kanban, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import OutputCard from "./OutputCard";
 import type { GeminiResponse } from "@/lib/gemini-api";
+import { printCleanDocument } from "@/lib/application-utils";
 
 interface ResultsDisplayProps {
   data: GeminiResponse;
   originalCvText: string;
+  onSaveToBoard?: () => void;
+  savedToBoard?: boolean;
 }
 
 /** Renders the output sections as expressive Material cards */
-const ResultsDisplay = ({ data, originalCvText }: ResultsDisplayProps) => {
+const ResultsDisplay = ({
+  data,
+  originalCvText,
+  onSaveToBoard,
+  savedToBoard,
+}: ResultsDisplayProps) => {
   // Format interview Q&As as readable text for copy
   const qnaCopyText = data.interview_qna
     ?.map((item, i) => `Q${i + 1}: ${item.question}\nA${i + 1}: ${item.answer}`)
@@ -23,9 +32,35 @@ const ResultsDisplay = ({ data, originalCvText }: ResultsDisplayProps) => {
   return (
     <div className="space-y-6">
       <div className="bg-card rounded-xl border border-border p-6 shadow-sm mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Target className="h-6 w-6 text-primary" />
-          <h2 className="text-xl font-semibold">Match Analysis</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <Target className="h-6 w-6 text-primary" />
+            <h2 className="text-xl font-semibold">Match Analysis</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => printCleanDocument("Tailored CV", data.tailored_cv)}
+              className="gap-1.5 text-xs"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Export CV PDF
+            </Button>
+            {onSaveToBoard && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSaveToBoard}
+                disabled={savedToBoard}
+                className="gap-1.5 text-xs"
+              >
+                <Kanban className="h-3.5 w-3.5" />
+                {savedToBoard ? "Saved to Board" : "Save to Application Board"}
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-shrink-0 flex flex-col items-center justify-center p-4 bg-muted rounded-lg w-full md:w-32 h-fit">

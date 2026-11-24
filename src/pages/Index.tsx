@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, UserCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import Header from "@/components/cv-optimiser/Header";
 import ApiKeyInput from "@/components/cv-optimiser/ApiKeyInput";
 import FileUpload, { type SavedCV } from "@/components/cv-optimiser/FileUpload";
@@ -23,6 +24,9 @@ import { type AiResponse, type ModelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
+import { useCareerProfile } from "@/hooks/use-career-profile";
+import { profileToCvMarkdown } from "@/lib/profile-types";
+import { useApplications } from "@/hooks/use-applications";
 
 const EMPTY_ARRAY: string[] = [];
 
@@ -90,8 +94,12 @@ const Index = () => {
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AiResponse | null>(null);
+  const [savedToBoard, setSavedToBoard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { profile } = useCareerProfile();
+  const { createApplication } = useApplications();
+  const masterProfileCv = useMemo(() => profileToCvMarkdown(profile), [profile]);
 
 
   useEffect(() => {
@@ -174,6 +182,7 @@ const Index = () => {
   const handleGenerate = async () => {
     setError(null);
     setResults(null);
+    setSavedToBoard(false);
     setLoading(true);
 
     try {
@@ -197,6 +206,38 @@ const Index = () => {
       setLoading(false);
     }
   };
+
+  const handleSaveResultsToBoard = useCallback(async () => {
+    if (!results) return;
+    const firstLine = jobSpecText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() || "Target Role";
+    await createApplication({
+      company: "Target Company",
+      roleTitle: firstLine.slice(0, 80),
+      jobSpecText,
+      status: "drafting",
+      matchPercentage: results.match_percentage,
+      matchingHighlights: results.matching_highlights,
+      missingSkills: results.missing_skills,
+      tailoredCv: results.tailored_cv,
+      coverLetter: results.cover_letter ?? "",
+      interviewQna: results.interview_qna ?? [],
+      industryUpdates: results.industry_updates ?? [],
+      cvVersions: [
+        {
+          id: `ver-${Date.now()}`,
+          label: `Quick Tailor (${selectedModel.toUpperCase()})`,
+          tailoredCv: results.tailored_cv,
+          coverLetter: results.cover_letter ?? "",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    setSavedToBoard(true);
+    toast({
+      title: "Saved to Application Board",
+      description: "Track status, refine with Bruce, and export PDF from the Board tab.",
+    });
+  }, [results, jobSpecText, createApplication, selectedModel, toast]);
 
   // Stable handler pattern to prevent GenerateButton re-renders
   const handleGenerateRef = useRef<typeof handleGenerate>();
@@ -244,19 +285,42 @@ const Index = () => {
             provider={selectedModel}
           />
 
-          <FileUpload
-            label="Upload Your CV"
-            description="Upload your current CV to be optimised for the target role."
-            onTextExtracted={handleCvExtracted}
-            onError={handleError}
-            saveCV={saveCV}
-            onSaveCVChange={setSaveCV}
-            savedCVs={savedCVs}
-            onSelectCV={handleSelectCV}
-            onDeleteCV={handleDeleteCV}
-            fileName={currentFileName}
-            selectedModel={selectedModel}
-          />
+          <div className="space-y-2">
+            {masterProfileCv.trim().length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={() => {
+                    setCvText(masterProfileCv);
+                    setCurrentFileName("Master Career Profile");
+                    toast({
+                      title: "Loaded Master Profile",
+                      description: "Using your verified career profile facts for tailoring.",
+                    });
+                  }}
+                >
+                  <UserCircle2 className="h-3.5 w-3.5 text-primary" />
+                  Use Master Profile
+                </Button>
+              </div>
+            )}
+            <FileUpload
+              label="Upload Your CV"
+              description="Upload your current CV to be optimised for the target role."
+              onTextExtracted={handleCvExtracted}
+              onError={handleError}
+              saveCV={saveCV}
+              onSaveCVChange={setSaveCV}
+              savedCVs={savedCVs}
+              onSelectCV={handleSelectCV}
+              onDeleteCV={handleDeleteCV}
+              fileName={currentFileName}
+              selectedModel={selectedModel}
+            />
+          </div>
 
           <JobSpecInput
             value={jobSpecText}
@@ -325,7 +389,12 @@ const Index = () => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <ResultsDisplay data={results} originalCvText={cvText} />
+                <ResultsDisplay
+                  data={results}
+                  originalCvText={cvText}
+                  onSaveToBoard={handleSaveResultsToBoard}
+                  savedToBoard={savedToBoard}
+                />
               </motion.div>
             )}
           </AnimatePresence>

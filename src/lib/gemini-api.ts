@@ -42,7 +42,7 @@ export async function callGeminiApi(
   const systemInstruction = generateSystemInstruction(apiWorkload, coverLetterStyle);
   const userPrompt = generateUserPrompt(cvText, jobSpecText, keywords, styles);
 
-  let responseSchema: Record<string, any> = {
+  const responseSchema: Record<string, any> = {
     type: "OBJECT",
     properties: {
       match_percentage: { type: "INTEGER" },
