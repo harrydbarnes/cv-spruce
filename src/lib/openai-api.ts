@@ -2,11 +2,12 @@ import {
   TailorStyle,
   CoverLetterStyle,
   ApiWorkload,
-  AiResponse
+  AiResponse,
+  ThinkingLevel,
 } from "./types";
 import { validateAiResponse } from "./validation-utils";
 import { generateSystemInstruction, generateUserPrompt } from "./prompt-utils";
-import { DEFAULT_TEMPERATURE } from "./constants";
+import { MODEL_IDS, resolveThinkingLevel } from "./constants";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -17,7 +18,9 @@ export async function callOpenAiApi(
   keywords: string = "",
   styles: TailorStyle[] = ["Precision"],
   coverLetterStyle: CoverLetterStyle = "Middle",
-  apiWorkload: ApiWorkload = "Normal"
+  apiWorkload: ApiWorkload = "Normal",
+  modelId: string = MODEL_IDS.openai,
+  thinkingLevel: ThinkingLevel = "auto"
 ): Promise<AiResponse> {
   if (!apiKey.trim()) {
     throw new Error("Please enter your OpenAI API key.");
@@ -31,15 +34,16 @@ export async function callOpenAiApi(
 
   const systemInstruction = generateSystemInstruction(apiWorkload, coverLetterStyle);
   const userPrompt = generateUserPrompt(cvText, jobSpecText, keywords, styles);
+  const resolvedThinking = resolveThinkingLevel(thinkingLevel, apiWorkload);
 
   const requestBody = {
-    model: "gpt-4o",
+    model: modelId,
     messages: [
       { role: "system", content: systemInstruction },
-      { role: "user", content: userPrompt }
+      { role: "user", content: userPrompt },
     ],
-    temperature: DEFAULT_TEMPERATURE,
-    response_format: { type: "json_object" }
+    reasoning_effort: resolvedThinking,
+    response_format: { type: "json_object" },
   };
 
   const response = await fetch(OPENAI_API_URL, {

@@ -8,17 +8,16 @@ import {
   CoverLetterStyle,
   ApiWorkload,
   IndustryUpdate,
-  AiResponse
+  AiResponse,
+  ThinkingLevel,
 } from "./types";
 import { validateAiResponse } from "./validation-utils";
 import { generateSystemInstruction, generateUserPrompt } from "./prompt-utils";
+import { MODEL_IDS, resolveThinkingLevel } from "./constants";
 
 // Re-export types for backward compatibility
 export type GeminiResponse = AiResponse;
 export type { TailorStyle, CoverLetterStyle, ApiWorkload, IndustryUpdate };
-
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 export async function callGeminiApi(
   apiKey: string,
@@ -27,7 +26,9 @@ export async function callGeminiApi(
   keywords: string = "",
   styles: TailorStyle[] = ["Precision"],
   coverLetterStyle: CoverLetterStyle = "Middle",
-  apiWorkload: ApiWorkload = "Normal"
+  apiWorkload: ApiWorkload = "Normal",
+  modelId: string = MODEL_IDS.gemini,
+  thinkingLevel: ThinkingLevel = "auto"
 ): Promise<AiResponse> {
   if (!apiKey.trim()) {
     throw new Error("Please enter your Gemini API key.");
@@ -41,6 +42,7 @@ export async function callGeminiApi(
 
   const systemInstruction = generateSystemInstruction(apiWorkload, coverLetterStyle);
   const userPrompt = generateUserPrompt(cvText, jobSpecText, keywords, styles);
+  const resolvedThinking = resolveThinkingLevel(thinkingLevel, apiWorkload).toUpperCase();
 
   const responseSchema: Record<string, any> = {
     type: "OBJECT",
@@ -99,11 +101,18 @@ export async function callGeminiApi(
       topK: 40,
       responseMimeType: "application/json",
       responseSchema: responseSchema,
+      thinkingConfig: {
+        thinkingLevel: resolvedThinking,
+      },
     },
   };
 
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    modelId
+  )}:generateContent`;
+
   // Use the x-goog-api-key header instead of query parameter to prevent key leakage in logs
-  const response = await fetch(GEMINI_API_URL, {
+  const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

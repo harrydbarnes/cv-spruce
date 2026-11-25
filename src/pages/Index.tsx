@@ -20,7 +20,8 @@ import {
 } from "@/lib/gemini-api";
 import { callOpenAiApi } from "@/lib/openai-api";
 import { callClaudeApi } from "@/lib/claude-api";
-import { type AiResponse, type ModelType } from "@/lib/types";
+import { type AiResponse, type ModelType, type ThinkingLevel } from "@/lib/types";
+import { MODEL_IDS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
@@ -37,7 +38,9 @@ type ApiCaller = (
   keywords: string,
   styles: TailorStyle[],
   coverLetterStyle: CoverLetterStyle,
-  apiWorkload: ApiWorkload
+  apiWorkload: ApiWorkload,
+  modelId?: string,
+  thinkingLevel?: ThinkingLevel
 ) => Promise<AiResponse>;
 
 const apiCallers: Record<ModelType, ApiCaller> = {
@@ -48,6 +51,13 @@ const apiCallers: Record<ModelType, ApiCaller> = {
 
 const Index = () => {
   const [selectedModel, setSelectedModel] = useState<ModelType>("gemini");
+  const [selectedModelId, setSelectedModelId] = useState<string>(MODEL_IDS.gemini);
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("auto");
+
+  const handleProviderChange = useCallback((provider: ModelType) => {
+    setSelectedModel(provider);
+    setSelectedModelId(MODEL_IDS[provider]);
+  }, []);
 
   // While creating a custom hook for multiple keys would be cleaner,
   // calling usePersistentApiKey three times is simple and robust.
@@ -195,7 +205,9 @@ const Index = () => {
         keywords,
         styles,
         coverLetterStyle,
-        apiWorkload
+        apiWorkload,
+        selectedModelId,
+        thinkingLevel
       );
 
       setResults(data);
@@ -265,7 +277,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header selectedModel={selectedModel} />
+      <Header selectedModel={selectedModel} selectedModelId={selectedModelId} />
 
       <main className="container mx-auto max-w-3xl px-4 pb-20">
         {/* Input section */}
@@ -275,7 +287,15 @@ const Index = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
         >
-          <ModelSelector selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={handleProviderChange}
+            selectedModelId={selectedModelId}
+            onModelIdChange={setSelectedModelId}
+            thinkingLevel={thinkingLevel}
+            onThinkingLevelChange={setThinkingLevel}
+            apiWorkload={apiWorkload}
+          />
 
           <ApiKeyInput
             value={currentApi.apiKey}

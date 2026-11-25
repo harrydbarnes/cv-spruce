@@ -3,6 +3,7 @@ export type CoverLetterStyle = "Short" | "Middle" | "Long";
 export type ApiWorkload = "Normal" | "Reduced" | "Minimal";
 
 export type ModelType = "gemini" | "claude" | "openai";
+export type ThinkingLevel = "auto" | "low" | "medium" | "high";
 
 export interface IndustryUpdate {
   update: string;
