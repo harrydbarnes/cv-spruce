@@ -1,5 +1,5 @@
 import { callStructuredAi } from "./ai-client";
-import type { IndustryUpdate, ModelType } from "./types";
+import type { IndustryUpdate, ModelType, ThinkingLevel } from "./types";
 
 export type ApplicationStatus =
   | "saved"
@@ -97,6 +97,8 @@ export function isApplicationStale(
  */
 export async function refineDocumentWithBruce(params: {
   provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
   apiKey: string;
   target: "cv" | "cover_letter";
   currentDocument: string;
@@ -132,6 +134,8 @@ ${params.userInstruction}
 
   return callStructuredAi<{ updatedDocument: string; reply: string }>({
     provider: params.provider,
+    modelId: params.modelId,
+    thinkingLevel: params.thinkingLevel,
     apiKey: params.apiKey,
     systemPrompt,
     userPrompt,
@@ -155,9 +159,9 @@ export function downloadMarkdownFile(filename: string, content: string) {
 }
 
 /**
- * Converts basic Markdown into clean semantic HTML for ATS-friendly PDF printing.
+ * Converts basic Markdown into clean semantic HTML for ATS-friendly PDF printing and live preview.
  */
-function markdownToPrintHtml(md: string): string {
+export function markdownToPrintHtml(md: string): string {
   const escape = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -217,6 +221,77 @@ function markdownToPrintHtml(md: string): string {
   return out.join("\n");
 }
 
+const STOP_WORDS = new Set([
+  "about", "above", "across", "after", "again", "against", "almost", "along", "already", "also",
+  "among", "another", "anyone", "around", "because", "before", "being", "between", "build",
+  "building", "company", "could", "current", "degree", "deliver", "design", "develop", "drive",
+  "ensure", "every", "excellent", "experience", "experienced", "first", "focus", "future",
+  "great", "growth", "having", "helps", "highly", "ideal", "including", "industry", "inside",
+  "joins", "knowledge", "large", "learn", "level", "looking", "major", "making", "manage",
+  "mission", "month", "months", "needs", "offer", "office", "opportunity", "other", "people",
+  "place", "please", "position", "possible", "preferred", "problems", "process", "product",
+  "products", "proven", "provide", "quality", "related", "remote", "required", "requirements",
+  "responsibilities", "results", "right", "roles", "salary", "scale", "service", "services",
+  "share", "should", "similar", "since", "skills", "small", "solutions", "someone", "standards",
+  "start", "strong", "support", "system", "systems", "teams", "technical", "technology", "their",
+  "there", "these", "thing", "think", "those", "three", "through", "today", "together", "tools",
+  "under", "understanding", "using", "values", "various", "where", "which", "while", "within",
+  "without", "working", "works", "world", "would", "years", "youll", "youre", "yours",
+]);
+
+/**
+ * Extracts high-signal keywords from a Job Specification and checks which ones
+ * appear in the current Tailored CV so users can spot ATS keyword coverage live.
+ */
+export function extractAtsKeywordCoverage(
+  jobSpecText: string,
+  cvText: string,
+  maxKeywords = 16
+): { matched: string[]; missing: string[]; coveragePct: number } {
+  if (!jobSpecText.trim()) return { matched: [], missing: [], coveragePct: 0 };
+
+  const tokens = jobSpecText.match(/[A-Za-z][A-Za-z0-9.+#/-]{2,}/g) ?? [];
+  const freq = new Map<string, { display: string; count: number }>();
+
+  for (const raw of tokens) {
+    const clean = raw.replace(/[.,/]+$/, "");
+    const lower = clean.toLowerCase();
+    if (lower.length < 3 || STOP_WORDS.has(lower)) continue;
+    const isTechnicalOrProper =
+      /[A-Z]/.test(clean[0]) || /[0-9.+#]/.test(clean) || clean.length >= 6;
+    if (!isTechnicalOrProper) continue;
+
+    const existing = freq.get(lower);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      freq.set(lower, { display: clean, count: 1 });
+    }
+  }
+
+  const topKeywords = Array.from(freq.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, maxKeywords)
+    .map(([lower, info]) => ({ lower, display: info.display }));
+
+  if (topKeywords.length === 0) return { matched: [], missing: [], coveragePct: 0 };
+
+  const cvLower = cvText.toLowerCase();
+  const matched: string[] = [];
+  const missing: string[] = [];
+
+  for (const kw of topKeywords) {
+    if (cvLower.includes(kw.lower)) {
+      matched.push(kw.display);
+    } else {
+      missing.push(kw.display);
+    }
+  }
+
+  const coveragePct = Math.round((matched.length / topKeywords.length) * 100);
+  return { matched, missing, coveragePct };
+}
+
 export type PdfTheme = "classic" | "modern" | "compact" | "executive";
 
 export const PDF_THEME_OPTIONS: Array<{ id: PdfTheme; label: string; description: string }> = [
@@ -262,6 +337,8 @@ const PDF_THEME_CSS: Record<PdfTheme, string> = {
  */
 export async function draftApplicationAnswerWithBruce(params: {
   provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
   apiKey: string;
   question: string;
   company: string;
@@ -303,6 +380,8 @@ ${params.jobSpecText.slice(0, 5000)}
 
   return callStructuredAi<{ answer: string; keyPointsUsed: string[] }>({
     provider: params.provider,
+    modelId: params.modelId,
+    thinkingLevel: params.thinkingLevel,
     apiKey: params.apiKey,
     systemPrompt,
     userPrompt,

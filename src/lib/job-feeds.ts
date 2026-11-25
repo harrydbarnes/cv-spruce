@@ -10,6 +10,7 @@ export type JobSource =
   | "lever"
   | "ashby"
   | "adzuna"
+  | "reed"
   | "jsearch";
 
 export type JobFeedback = "liked" | "disliked" | "saved" | "hidden";
@@ -56,6 +57,7 @@ export const JOB_SOURCE_LABELS: Record<JobSource, string> = {
   lever: "Lever Company Board",
   ashby: "Ashby Company Board (UK/Global Startups)",
   adzuna: "Adzuna UK (GBP / Free API Key)",
+  reed: "Reed.co.uk (UK / Free API Key)",
   jsearch: "JSearch / LinkedIn & Indeed (BYOK)",
 };
 
@@ -414,6 +416,72 @@ export async function fetchAdzunaUkJobs(
   });
 }
 
+export const REED_API_KEY_KEY = "cv-spruce-reed-api-key";
+
+export async function fetchReedUkJobs(
+  query: string,
+  location = "",
+  limit = 20
+): Promise<DiscoveredJob[]> {
+  const apiKey = typeof window !== "undefined" ? localStorage.getItem(REED_API_KEY_KEY) || "" : "";
+  if (!apiKey.trim()) {
+    throw new Error(
+      "Reed.co.uk requires a free Reed API key — add it under Discover → UK Job Board Keys."
+    );
+  }
+
+  const params = new URLSearchParams({
+    resultsToTake: String(limit),
+    keywords: query.trim() || "software engineer",
+  });
+  if (location.trim()) {
+    params.set("locationName", location.trim());
+  }
+
+  const authHeader = `Basic ${btoa(`${apiKey.trim()}:`)}`;
+  const res = await fetch(`https://www.reed.co.uk/api/1.0/search?${params.toString()}`, {
+    headers: {
+      Authorization: authHeader,
+    },
+  });
+  if (!res.ok) throw new Error(`Reed.co.uk API error (${res.status})`);
+  const data = await res.json();
+  const list = Array.isArray(data.results) ? data.results : [];
+  const now = new Date().toISOString();
+
+  return list.slice(0, limit).map((item: Record<string, unknown>) => {
+    const minSal = typeof item.minimumSalary === "number" ? Math.round(item.minimumSalary) : null;
+    const maxSal = typeof item.maximumSalary === "number" ? Math.round(item.maximumSalary) : null;
+    const salary =
+      minSal && maxSal
+        ? `£${minSal.toLocaleString()} – £${maxSal.toLocaleString()}`
+        : minSal
+          ? `From £${minSal.toLocaleString()}`
+          : undefined;
+    const title = String(item.jobTitle ?? "Untitled Role");
+    const desc = stripHtml(String(item.jobDescription ?? ""));
+    const loc = String(item.locationName ?? "United Kingdom");
+
+    return {
+      id: `reed-${String(item.jobId)}`,
+      externalId: String(item.jobId),
+      source: "reed" as const,
+      title,
+      company: String(item.employerName ?? "UK Employer"),
+      location: loc,
+      remote: /\bremote\b/i.test(`${title} ${loc} ${desc}`),
+      salary,
+      url: String(item.jobUrl ?? ""),
+      description: desc,
+      tags: ["Reed UK"],
+      matchReasons: [],
+      skillGaps: [],
+      postedAt: item.date ? String(item.date) : undefined,
+      discoveredAt: now,
+    };
+  });
+}
+
 export async function fetchJobsForWatcher(watcher: JobWatcher): Promise<DiscoveredJob[]> {
   let jobs: DiscoveredJob[] = [];
   switch (watcher.source) {
@@ -437,6 +505,9 @@ export async function fetchJobsForWatcher(watcher: JobWatcher): Promise<Discover
       break;
     case "adzuna":
       jobs = await fetchAdzunaUkJobs(watcher.query, watcher.location || "");
+      break;
+    case "reed":
+      jobs = await fetchReedUkJobs(watcher.query, watcher.location || "");
       break;
     default:
       jobs = [];
@@ -549,7 +620,9 @@ export async function scoreJobsWithAi(
   provider: ModelType,
   apiKey: string,
   jobs: DiscoveredJob[],
-  profile: CareerProfile
+  profile: CareerProfile,
+  modelId?: string,
+  thinkingLevel?: "auto" | "low" | "medium" | "high"
 ): Promise<Map<string, { matchScore: number; matchReasons: string[]; skillGaps: string[] }>> {
   const sample = jobs.slice(0, 12).map((j) => ({
     id: j.id,
@@ -589,6 +662,8 @@ Return JSON:
     }>;
   }>({
     provider,
+    modelId,
+    thinkingLevel,
     apiKey,
     systemPrompt,
     userPrompt,

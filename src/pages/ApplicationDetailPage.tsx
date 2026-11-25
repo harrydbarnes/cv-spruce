@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -17,6 +17,10 @@ import {
   Copy,
   Check,
   HelpCircle,
+  Eye,
+  Code2,
+  Package,
+  ClipboardCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,7 @@ import {
 import { useApplications } from "@/hooks/use-applications";
 import { useCareerProfile } from "@/hooks/use-career-profile";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
+import { useAiPreferences } from "@/hooks/use-ai-preferences";
 import { profileToCvMarkdown } from "@/lib/profile-types";
 import { callGeminiApi } from "@/lib/gemini-api";
 import { callOpenAiApi } from "@/lib/openai-api";
@@ -46,9 +51,12 @@ import {
   draftApplicationAnswerWithBruce,
   downloadMarkdownFile,
   printCleanDocument,
+  markdownToPrintHtml,
+  extractAtsKeywordCoverage,
   type ApplicationStatus,
   type PdfTheme,
 } from "@/lib/application-utils";
+import { downloadApplyPackZip } from "@/lib/zip-pack";
 import type { ModelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import Footer from "@/components/Footer";
@@ -68,7 +76,13 @@ export default function ApplicationDetailPage() {
 
   const app = applications.find((a) => a.id === id);
 
-  const [model, setModel] = useState<ModelType>("gemini");
+  const {
+    provider: model,
+    modelId: activeModelId,
+    thinkingLevel,
+    setProvider: setModel,
+  } = useAiPreferences();
+
   const gemini = usePersistentApiKey("gemini");
   const openai = usePersistentApiKey("openai");
   const claude = usePersistentApiKey("claude");
@@ -76,6 +90,7 @@ export default function ApplicationDetailPage() {
 
   const [generating, setGenerating] = useState(false);
   const [pdfTheme, setPdfTheme] = useState<PdfTheme>("classic");
+  const [cvViewMode, setCvViewMode] = useState<"edit" | "split" | "preview">("split");
   const [chatTarget, setChatTarget] = useState<"cv" | "cover_letter">("cv");
   const [chatInput, setChatInput] = useState("");
   const [refining, setRefining] = useState(false);
@@ -88,6 +103,30 @@ export default function ApplicationDetailPage() {
   const [draftedAnswers, setDraftedAnswers] = useState<
     Array<{ id: string; question: string; answer: string; keyPointsUsed: string[] }>
   >([]);
+
+  const keywordCoverage = useMemo(
+    () => extractAtsKeywordCoverage(app?.jobSpecText ?? "", app?.tailoredCv ?? ""),
+    [app?.jobSpecText, app?.tailoredCv]
+  );
+
+  const cvPreviewHtml = useMemo(
+    () => markdownToPrintHtml(app?.tailoredCv ?? ""),
+    [app?.tailoredCv]
+  );
+
+  const quickCopyFields = useMemo(
+    () =>
+      [
+        { key: "name", label: "Name", value: profile.basics.fullName },
+        { key: "email", label: "Email", value: profile.basics.email },
+        { key: "phone", label: "Phone", value: profile.basics.phone },
+        { key: "location", label: "Location", value: profile.basics.location },
+        { key: "linkedin", label: "LinkedIn", value: profile.basics.linkedinUrl },
+        { key: "github", label: "GitHub", value: profile.basics.githubUrl },
+        { key: "salary", label: "Salary Target", value: profile.preferences.minSalary },
+      ].filter((f) => f.value.trim().length > 0),
+    [profile]
+  );
 
   if (!app) {
     return (
@@ -148,7 +187,9 @@ export default function ApplicationDetailPage() {
         "",
         ["Precision"],
         "Middle",
-        "Normal"
+        "Normal",
+        activeModelId,
+        thinkingLevel
       );
 
       const snapshot = {
@@ -191,7 +232,7 @@ export default function ApplicationDetailPage() {
     if (!activeKey.trim()) {
       toast({
         title: "API Key Required",
-        description: "Save an API key on Quick Tailor to chat with Bruce.",
+        description: "Tap the 🔑 button in the top bar to save an AI key first.",
         variant: "destructive",
       });
       return;
@@ -214,6 +255,8 @@ export default function ApplicationDetailPage() {
     try {
       const { updatedDocument, reply } = await refineDocumentWithBruce({
         provider: model,
+        modelId: activeModelId,
+        thinkingLevel,
         apiKey: activeKey,
         target: chatTarget,
         currentDocument: currentDoc,
@@ -262,7 +305,7 @@ export default function ApplicationDetailPage() {
     if (!activeKey.trim()) {
       toast({
         title: "API Key Required",
-        description: "Save a Gemini, Claude, or OpenAI key on Quick Tailor first.",
+        description: "Tap the 🔑 button in the top bar to save a Gemini, Claude, or OpenAI key.",
         variant: "destructive",
       });
       return;
@@ -273,6 +316,8 @@ export default function ApplicationDetailPage() {
       const q = formQuestion.trim();
       const res = await draftApplicationAnswerWithBruce({
         provider: model,
+        modelId: activeModelId,
+        thinkingLevel,
         apiKey: activeKey,
         question: q,
         company: app.company,
@@ -296,6 +341,44 @@ export default function ApplicationDetailPage() {
     } finally {
       setDraftingAnswer(false);
     }
+  };
+
+  const handleDownloadApplyPack = () => {
+    const entries: Array<{ name: string; content: string }> = [];
+    if (app.tailoredCv.trim()) {
+      entries.push({ name: "01-Tailored-CV.md", content: app.tailoredCv });
+    }
+    if (app.coverLetter.trim()) {
+      entries.push({ name: "02-Cover-Letter.md", content: app.coverLetter });
+    }
+    if (draftedAnswers.length > 0) {
+      entries.push({
+        name: "03-Form-Answers.md",
+        content: draftedAnswers
+          .map((d, idx) => `## Q${idx + 1}: ${d.question}\n\n${d.answer}`)
+          .join("\n\n---\n\n"),
+      });
+    }
+    if (app.interviewQna.length > 0) {
+      entries.push({
+        name: "04-Interview-Prep.md",
+        content: app.interviewQna
+          .map((qa, idx) => `### Q${idx + 1}: ${qa.question}\n\n${qa.answer}`)
+          .join("\n\n"),
+      });
+    }
+    if (entries.length === 0) {
+      toast({
+        title: "Nothing to Bundle Yet",
+        description: "Generate your bespoke kit or draft answers first.",
+      });
+      return;
+    }
+    downloadApplyPackZip(`${app.company}-${app.roleTitle}`, entries);
+    toast({
+      title: "Apply Pack Downloaded",
+      description: `Bundled ${entries.length} documents into a .zip archive.`,
+    });
   };
 
   return (
@@ -365,6 +448,16 @@ export default function ApplicationDetailPage() {
               </SelectContent>
             </Select>
 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDownloadApplyPack}
+              className="gap-1.5"
+            >
+              <Package className="h-4 w-4" />
+              Apply Pack (.zip)
+            </Button>
+
             <Button onClick={handleGenerateKit} disabled={generating} className="gap-2">
               {generating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -375,6 +468,34 @@ export default function ApplicationDetailPage() {
             </Button>
           </div>
         </div>
+
+        {/* Quick-Fill Clipboard Bar for ATS forms */}
+        {quickCopyFields.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/80 px-4 py-2.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mr-1">
+              <ClipboardCheck className="h-3.5 w-3.5 text-primary" />
+              Quick-Fill Copy:
+            </span>
+            {quickCopyFields.map((field) => (
+              <Button
+                key={field.key}
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void handleCopy(`qf-${field.key}`, field.value)}
+                className="h-7 gap-1 text-xs bg-background"
+                title={field.value}
+              >
+                {copiedKey === `qf-${field.key}` ? (
+                  <Check className="h-3 w-3 text-primary" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+                {field.label}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {/* Main 2-column studio */}
         <div className="grid gap-6 lg:grid-cols-12">
@@ -510,12 +631,35 @@ export default function ApplicationDetailPage() {
                 <Card className="border-border bg-card">
                   <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
                     <div>
-                      <CardTitle className="text-lg">Tailored CV (Markdown)</CardTitle>
+                      <CardTitle className="text-lg">Tailored CV (Markdown + Live Preview)</CardTitle>
                       <CardDescription className="text-xs">
-                        Edit directly or choose an ATS theme to export as PDF.
+                        Edit Markdown, inspect live ATS keyword coverage, or export a themed PDF.
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
+                        {(
+                          [
+                            { id: "edit", label: "Edit", icon: Code2 },
+                            { id: "split", label: "Split", icon: FileText },
+                            { id: "preview", label: "Preview", icon: Eye },
+                          ] as const
+                        ).map(({ id: modeId, label, icon: ModeIcon }) => (
+                          <button
+                            key={modeId}
+                            type="button"
+                            onClick={() => setCvViewMode(modeId)}
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                              cvViewMode === modeId
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <ModeIcon className="h-3 w-3" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                       <Select value={pdfTheme} onValueChange={(v) => setPdfTheme(v as PdfTheme)}>
                         <SelectTrigger className="h-8 w-36 bg-background text-xs">
                           <SelectValue />
@@ -567,14 +711,63 @@ export default function ApplicationDetailPage() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <Textarea
-                      rows={22}
-                      value={app.tailoredCv}
-                      onChange={(e) => void updateApplication(app.id, { tailoredCv: e.target.value })}
-                      placeholder="Click '1-Click Bespoke Kit' above to generate a fact-grounded CV tailored to this role..."
-                      className="bg-background font-mono text-xs leading-relaxed"
-                    />
+                  <CardContent className="space-y-3">
+                    {/* Live ATS Keyword Coverage Bar */}
+                    {(keywordCoverage.matched.length > 0 || keywordCoverage.missing.length > 0) && (
+                      <div className="rounded-xl border border-border bg-background/60 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold">
+                            ATS Spec Keyword Coverage: {keywordCoverage.coveragePct}%
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {keywordCoverage.matched.length} matched · {keywordCoverage.missing.length} missing
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {keywordCoverage.matched.map((kw) => (
+                            <Badge key={`m-${kw}`} variant="secondary" className="text-[10px]">
+                              ✓ {kw}
+                            </Badge>
+                          ))}
+                          {keywordCoverage.missing.map((kw) => (
+                            <Badge key={`x-${kw}`} variant="outline" className="text-[10px] opacity-70">
+                              {kw}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div
+                      className={
+                        cvViewMode === "split" ? "grid gap-3 md:grid-cols-2" : "block"
+                      }
+                    >
+                      {cvViewMode !== "preview" && (
+                        <Textarea
+                          rows={22}
+                          value={app.tailoredCv}
+                          onChange={(e) => void updateApplication(app.id, { tailoredCv: e.target.value })}
+                          placeholder="Click '1-Click Bespoke Kit' above to generate a fact-grounded CV tailored to this role..."
+                          className="bg-background font-mono text-xs leading-relaxed"
+                        />
+                      )}
+
+                      {cvViewMode !== "edit" && (
+                        <div className="h-[490px] overflow-y-auto rounded-lg border border-border bg-white p-5 text-zinc-900 shadow-inner">
+                          {app.tailoredCv.trim() ? (
+                            <div
+                              className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-1 [&_h2]:text-xs [&_h2]:font-bold [&_h2]:uppercase [&_h2]:tracking-wider [&_h2]:border-b [&_h2]:border-zinc-200 [&_h2]:pb-1 [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2.5 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:my-1.5 [&_p]:text-xs [&_li]:text-xs"
+                              dangerouslySetInnerHTML={{ __html: cvPreviewHtml }}
+                            />
+                          ) : (
+                            <p className="text-xs text-zinc-500">
+                              Live CV preview will appear here once generated or typed.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>

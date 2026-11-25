@@ -35,10 +35,12 @@ import { useCareerProfile } from "@/hooks/use-career-profile";
 import { useJobDiscovery } from "@/hooks/use-job-discovery";
 import { useApplications } from "@/hooks/use-applications";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
+import { useAiPreferences } from "@/hooks/use-ai-preferences";
 import {
   JOB_SOURCE_LABELS,
   ADZUNA_APP_ID_KEY,
   ADZUNA_APP_KEY_KEY,
+  REED_API_KEY_KEY,
   type DiscoveredJob,
   type JobSource,
 } from "@/lib/job-feeds";
@@ -62,6 +64,12 @@ export default function DiscoverPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile, lastActiveAt, touchActivity, recordFeedbackSignal } = useCareerProfile();
+  const {
+    provider: scoreModel,
+    modelId: activeModelId,
+    thinkingLevel,
+    setProvider: setScoreModel,
+  } = useAiPreferences();
 
   useEffect(() => {
     void touchActivity();
@@ -102,19 +110,21 @@ export default function DiscoverPage() {
   const [adzunaAppKey, setAdzunaAppKey] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem(ADZUNA_APP_KEY_KEY) || "" : ""
   );
+  const [reedApiKey, setReedApiKey] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem(REED_API_KEY_KEY) || "" : ""
+  );
 
   const [filterText, setFilterText] = useState("");
   const [onlyRemote, setOnlyRemote] = useState(false);
   const [hideDisliked, setHideDisliked] = useState(true);
 
-  const [scoreModel, setScoreModel] = useState<ModelType>("gemini");
   const gemini = usePersistentApiKey("gemini");
   const openai = usePersistentApiKey("openai");
   const claude = usePersistentApiKey("claude");
   const activeKey = { gemini, openai, claude }[scoreModel].apiKey;
 
   const needsSlug = newSource === "greenhouse" || newSource === "lever" || newSource === "ashby";
-  const isAdzuna = newSource === "adzuna";
+  const isUkBoard = newSource === "adzuna" || newSource === "reed";
 
   const saveAdzunaKeys = () => {
     localStorage.setItem(ADZUNA_APP_ID_KEY, adzunaAppId.trim());
@@ -125,12 +135,20 @@ export default function DiscoverPage() {
     });
   };
 
+  const saveReedKey = () => {
+    localStorage.setItem(REED_API_KEY_KEY, reedApiKey.trim());
+    toast({
+      title: "Reed.co.uk Key Saved",
+      description: "Stored locally in your browser for Reed UK searches.",
+    });
+  };
+
   const handleAddWatcher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (needsSlug && !newSlug.trim()) {
       toast({
         title: "Company slug required",
-        description: "Enter a company board slug (e.g. monzo, deliveroo, incident.io).",
+        description: "Enter a company board slug (e.g. monzo, deliveroo, synthesia).",
         variant: "destructive",
       });
       return;
@@ -140,8 +158,8 @@ export default function DiscoverPage() {
       newName.trim() ||
       (needsSlug
         ? `${newSlug.trim()} (${newSource})`
-        : isAdzuna
-          ? `${newQuery.trim() || "UK Roles"} • ${newLocation.trim() || "UK"} (Adzuna)`
+        : isUkBoard
+          ? `${newQuery.trim() || "UK Roles"} • ${newLocation.trim() || "UK"} (${newSource})`
           : `${newQuery.trim() || "All"} on ${newSource}`);
 
     await addWatcher({
@@ -149,7 +167,7 @@ export default function DiscoverPage() {
       source: newSource,
       query: newQuery.trim(),
       companySlug: needsSlug ? newSlug.trim() : undefined,
-      location: isAdzuna ? newLocation.trim() : undefined,
+      location: isUkBoard ? newLocation.trim() : undefined,
       remoteOnly: newRemoteOnly,
       enabled: true,
     });
@@ -172,13 +190,13 @@ export default function DiscoverPage() {
     if (!activeKey.trim()) {
       toast({
         title: "API Key Needed",
-        description: "Save a Gemini, Claude, or OpenAI API key on Quick Tailor first.",
+        description: "Tap the 🔑 button in the top bar to add a Gemini, Claude, or OpenAI key.",
         variant: "destructive",
       });
       return;
     }
     try {
-      await runAiDeepScore(scoreModel, activeKey);
+      await runAiDeepScore(scoreModel, activeKey, activeModelId, thinkingLevel);
       toast({
         title: "Bruce AI Ranking Updated",
         description: "Top roles have been deeply scored against your career story & feedback.",
@@ -230,18 +248,20 @@ export default function DiscoverPage() {
 
     const queries = roles.length > 0 ? roles.slice(0, 3) : [profile.basics.headline.trim()];
     const hasAdzuna = Boolean(adzunaAppId.trim() && adzunaAppKey.trim());
+    const hasReed = Boolean(reedApiKey.trim());
+    const chosenSource: JobSource = hasAdzuna ? "adzuna" : hasReed ? "reed" : "remotive";
     let added = 0;
 
     for (const q of queries) {
       const exists = watchers.some(
-        (w) => w.query.toLowerCase() === q.toLowerCase() && w.source === (hasAdzuna ? "adzuna" : "remotive")
+        (w) => w.query.toLowerCase() === q.toLowerCase() && w.source === chosenSource
       );
       if (exists) continue;
       await addWatcher({
         name: `${q}${locations[0] ? ` • ${locations[0]}` : ""}`,
-        source: hasAdzuna ? "adzuna" : "remotive",
+        source: chosenSource,
         query: q,
-        location: hasAdzuna ? locations[0] || "UK" : undefined,
+        location: chosenSource === "adzuna" || chosenSource === "reed" ? locations[0] || "UK" : undefined,
         remoteOnly,
         enabled: true,
       });
@@ -390,6 +410,7 @@ export default function DiscoverPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="adzuna">{JOB_SOURCE_LABELS.adzuna}</SelectItem>
+                      <SelectItem value="reed">{JOB_SOURCE_LABELS.reed}</SelectItem>
                       <SelectItem value="ashby">{JOB_SOURCE_LABELS.ashby}</SelectItem>
                       <SelectItem value="greenhouse">{JOB_SOURCE_LABELS.greenhouse}</SelectItem>
                       <SelectItem value="lever">{JOB_SOURCE_LABELS.lever}</SelectItem>
@@ -404,7 +425,7 @@ export default function DiscoverPage() {
                   <div className="space-y-1">
                     <Label className="text-xs">Company Board Slug</Label>
                     <Input
-                      placeholder="e.g. monzo, deliveroo, incident.io"
+                      placeholder="e.g. monzo, deliveroo, synthesia"
                       value={newSlug}
                       onChange={(e) => setNewSlug(e.target.value)}
                       className="bg-background"
@@ -412,7 +433,7 @@ export default function DiscoverPage() {
                   </div>
                 )}
 
-                {isAdzuna && (
+                {isUkBoard && (
                   <div className="space-y-2 rounded-lg border border-border bg-card/70 p-2.5">
                     <div className="space-y-1">
                       <Label className="text-xs">UK Location (e.g. London, Manchester, UK)</Label>
@@ -423,33 +444,59 @@ export default function DiscoverPage() {
                         className="bg-background h-8 text-xs"
                       />
                     </div>
-                    <p className="text-[11px] font-semibold text-muted-foreground">
-                      Adzuna UK Free API Keys (stored locally)
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <Input
-                        placeholder="App ID"
-                        value={adzunaAppId}
-                        onChange={(e) => setAdzunaAppId(e.target.value)}
-                        className="bg-background h-8 text-xs"
-                      />
-                      <Input
-                        type="password"
-                        placeholder="App Key"
-                        value={adzunaAppKey}
-                        onChange={(e) => setAdzunaAppKey(e.target.value)}
-                        className="bg-background h-8 text-xs"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={saveAdzunaKeys}
-                      className="h-7 w-full text-xs"
-                    >
-                      Save Adzuna UK Keys
-                    </Button>
+                    {newSource === "adzuna" ? (
+                      <>
+                        <p className="text-[11px] font-semibold text-muted-foreground">
+                          Adzuna UK Free API Keys (stored locally)
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Input
+                            placeholder="App ID"
+                            value={adzunaAppId}
+                            onChange={(e) => setAdzunaAppId(e.target.value)}
+                            className="bg-background h-8 text-xs"
+                          />
+                          <Input
+                            type="password"
+                            placeholder="App Key"
+                            value={adzunaAppKey}
+                            onChange={(e) => setAdzunaAppKey(e.target.value)}
+                            className="bg-background h-8 text-xs"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={saveAdzunaKeys}
+                          className="h-7 w-full text-xs"
+                        >
+                          Save Adzuna UK Keys
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[11px] font-semibold text-muted-foreground">
+                          Reed.co.uk Free API Key (stored locally)
+                        </p>
+                        <Input
+                          type="password"
+                          placeholder="Reed API Key"
+                          value={reedApiKey}
+                          onChange={(e) => setReedApiKey(e.target.value)}
+                          className="bg-background h-8 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={saveReedKey}
+                          className="h-7 w-full text-xs"
+                        >
+                          Save Reed UK Key
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
 

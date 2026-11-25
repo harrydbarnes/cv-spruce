@@ -30,13 +30,13 @@ import {
 import { callOpenAiApi } from "@/lib/openai-api";
 import { callClaudeApi } from "@/lib/claude-api";
 import { type AiResponse, type ModelType, type ThinkingLevel } from "@/lib/types";
-import { MODEL_IDS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/use-debounce";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
 import { useCareerProfile } from "@/hooks/use-career-profile";
 import { profileToCvMarkdown } from "@/lib/profile-types";
 import { useApplications } from "@/hooks/use-applications";
+import { useAiPreferences } from "@/hooks/use-ai-preferences";
 
 const EMPTY_ARRAY: string[] = [];
 
@@ -59,14 +59,14 @@ const apiCallers: Record<ModelType, ApiCaller> = {
 };
 
 const Index = () => {
-  const [selectedModel, setSelectedModel] = useState<ModelType>("gemini");
-  const [selectedModelId, setSelectedModelId] = useState<string>(MODEL_IDS.gemini);
-  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>("auto");
-
-  const handleProviderChange = useCallback((provider: ModelType) => {
-    setSelectedModel(provider);
-    setSelectedModelId(MODEL_IDS[provider]);
-  }, []);
+  const {
+    provider: selectedModel,
+    modelId: selectedModelId,
+    thinkingLevel,
+    setProvider: handleProviderChange,
+    setModelId: setSelectedModelId,
+    setThinkingLevel,
+  } = useAiPreferences();
 
   // While creating a custom hook for multiple keys would be cleaner,
   // calling usePersistentApiKey three times is simple and robust.

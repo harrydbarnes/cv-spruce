@@ -15,8 +15,11 @@ import {
   Brain,
   Download,
   HardDrive,
+  MessageCircle,
 } from "lucide-react";
 import { downloadWorkspaceBackup, restoreWorkspaceBackup } from "@/lib/workspace-backup";
+import { BruceInterviewDialog } from "@/components/profile/BruceInterviewDialog";
+import { useAiPreferences } from "@/hooks/use-ai-preferences";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +55,12 @@ const csvToList = (val: string) =>
 export default function ProfilePage() {
   const { profile, saving, strength, updateProfile, removeFeedbackSignal } = useCareerProfile();
   const { toast } = useToast();
+  const {
+    provider: importModel,
+    modelId: activeModelId,
+    thinkingLevel,
+    setProvider: setImportModel,
+  } = useAiPreferences();
 
   const [draft, setDraft] = useState<CareerProfile>(profile);
   const [syncedProfileRef, setSyncedProfileRef] = useState(profile);
@@ -60,7 +69,7 @@ export default function ProfilePage() {
     setDraft(profile);
   }
 
-  const [importModel, setImportModel] = useState<ModelType>("gemini");
+  const [interviewOpen, setInterviewOpen] = useState(false);
   const gemini = usePersistentApiKey("gemini");
   const openai = usePersistentApiKey("openai");
   const claude = usePersistentApiKey("claude");
@@ -95,12 +104,18 @@ export default function ProfilePage() {
         await updateProfile(updated);
         toast({
           title: "CV Text Stored",
-          description: "Add an API key on Quick Tailor to auto-extract structured sections with AI.",
+          description: "Tap the 🔑 button in the top bar to add an AI key for auto-extraction.",
         });
         return;
       }
 
-      const extracted = await parseCvToProfileWithAi(importModel, activeKey, rawText);
+      const extracted = await parseCvToProfileWithAi(
+        importModel,
+        activeKey,
+        rawText,
+        activeModelId,
+        thinkingLevel
+      );
       const merged: CareerProfile = {
         ...draft,
         basics: { ...draft.basics, ...(extracted.basics ?? {}) },
@@ -258,14 +273,26 @@ export default function ProfilePage() {
 
         {/* Bruce Career Story & Preferences (Jack & Jill-inspired) */}
         <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Brain className="h-5 w-5 text-primary" />
-              Bruce&apos;s Career Brief &amp; Preferences
-            </CardTitle>
-            <CardDescription>
-              Tell Bruce what your CV leaves out — what you want next, your ideal environment, and hard dealbreakers.
-            </CardDescription>
+          <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Brain className="h-5 w-5 text-primary" />
+                Bruce&apos;s Career Brief &amp; Preferences
+              </CardTitle>
+              <CardDescription>
+                Tell Bruce what your CV leaves out — what you want next, your ideal environment, and hard dealbreakers.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setInterviewOpen(true)}
+              className="gap-1.5 self-start sm:self-auto"
+            >
+              <MessageCircle className="h-4 w-4 text-primary" />
+              2-Min Chat with Bruce
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
@@ -979,6 +1006,25 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </main>
+
+      <BruceInterviewDialog
+        open={interviewOpen}
+        onOpenChange={setInterviewOpen}
+        provider={importModel}
+        modelId={activeModelId}
+        thinkingLevel={thinkingLevel}
+        apiKey={activeKey}
+        onComplete={async (patch) => {
+          const merged: CareerProfile = {
+            ...draft,
+            careerStory: patch.careerStory ?? draft.careerStory,
+            preferences: { ...draft.preferences, ...(patch.preferences ?? {}) },
+          };
+          setDraft(merged);
+          await updateProfile(merged);
+        }}
+      />
+
       <Footer />
     </div>
   );
