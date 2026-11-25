@@ -11,6 +11,7 @@ import {
   Sun,
   Trees,
   HelpCircle,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthDialog } from "@/components/auth/AuthDialog";
 import { HelpDialog } from "@/components/layout/HelpDialog";
+import { ApiKeysDialog } from "@/components/layout/ApiKeysDialog";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -38,6 +40,7 @@ export function TopNav() {
   const { user, signOut, isSupabaseConfigured } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [keysOpen, setKeysOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
     return document.documentElement.classList.contains("dark") || localStorage.getItem("cv-spruce-theme") === "dark";
@@ -99,6 +102,17 @@ export function TopNav() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setKeysOpen(true)}
+              aria-label="Manage AI API keys"
+              title="Manage AI API keys"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+            >
+              <KeyRound className="h-4 w-4" />
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"
@@ -166,6 +180,7 @@ export function TopNav() {
 
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
       <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <ApiKeysDialog open={keysOpen} onOpenChange={setKeysOpen} />
     </>
   );
 }

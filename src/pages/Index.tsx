@@ -2,6 +2,15 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, UserCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Header from "@/components/cv-optimiser/Header";
 import ApiKeyInput from "@/components/cv-optimiser/ApiKeyInput";
 import FileUpload, { type SavedCV } from "@/components/cv-optimiser/FileUpload";
@@ -105,6 +114,9 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AiResponse | null>(null);
   const [savedToBoard, setSavedToBoard] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveCompany, setSaveCompany] = useState("");
+  const [saveRoleTitle, setSaveRoleTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { profile } = useCareerProfile();
@@ -219,37 +231,50 @@ const Index = () => {
     }
   };
 
-  const handleSaveResultsToBoard = useCallback(async () => {
+  const handleOpenSaveDialog = useCallback(() => {
     if (!results) return;
-    const firstLine = jobSpecText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() || "Target Role";
-    await createApplication({
-      company: "Target Company",
-      roleTitle: firstLine.slice(0, 80),
-      jobSpecText,
-      status: "drafting",
-      matchPercentage: results.match_percentage,
-      matchingHighlights: results.matching_highlights,
-      missingSkills: results.missing_skills,
-      tailoredCv: results.tailored_cv,
-      coverLetter: results.cover_letter ?? "",
-      interviewQna: results.interview_qna ?? [],
-      industryUpdates: results.industry_updates ?? [],
-      cvVersions: [
-        {
-          id: `ver-${Date.now()}`,
-          label: `Quick Tailor (${selectedModel.toUpperCase()})`,
-          tailoredCv: results.tailored_cv,
-          coverLetter: results.cover_letter ?? "",
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    });
-    setSavedToBoard(true);
-    toast({
-      title: "Saved to Application Board",
-      description: "Track status, refine with Bruce, and export PDF from the Board tab.",
-    });
-  }, [results, jobSpecText, createApplication, selectedModel, toast]);
+    const firstLine =
+      jobSpecText.split(/\r?\n/).find((l) => l.trim().length > 0)?.trim() || "Target Role";
+    setSaveRoleTitle(firstLine.slice(0, 80));
+    setSaveCompany("");
+    setSaveDialogOpen(true);
+  }, [results, jobSpecText]);
+
+  const handleConfirmSaveToBoard = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!results) return;
+      await createApplication({
+        company: saveCompany.trim() || "Target Company",
+        roleTitle: saveRoleTitle.trim() || "Target Role",
+        jobSpecText,
+        status: "drafting",
+        matchPercentage: results.match_percentage,
+        matchingHighlights: results.matching_highlights,
+        missingSkills: results.missing_skills,
+        tailoredCv: results.tailored_cv,
+        coverLetter: results.cover_letter ?? "",
+        interviewQna: results.interview_qna ?? [],
+        industryUpdates: results.industry_updates ?? [],
+        cvVersions: [
+          {
+            id: `ver-${Date.now()}`,
+            label: `Quick Tailor (${selectedModel.toUpperCase()})`,
+            tailoredCv: results.tailored_cv,
+            coverLetter: results.cover_letter ?? "",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+      setSaveDialogOpen(false);
+      setSavedToBoard(true);
+      toast({
+        title: "Saved to Application Board",
+        description: "Track status, refine with Bruce, and export PDF from the Board tab.",
+      });
+    },
+    [results, saveCompany, saveRoleTitle, jobSpecText, createApplication, selectedModel, toast]
+  );
 
   // Stable handler pattern to prevent GenerateButton re-renders
   const handleGenerateRef = useRef<typeof handleGenerate>();
@@ -412,7 +437,7 @@ const Index = () => {
                 <ResultsDisplay
                   data={results}
                   originalCvText={cvText}
-                  onSaveToBoard={handleSaveResultsToBoard}
+                  onSaveToBoard={handleOpenSaveDialog}
                   savedToBoard={savedToBoard}
                 />
               </motion.div>
@@ -420,6 +445,44 @@ const Index = () => {
           </AnimatePresence>
         </section>
       </main>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="sm:max-w-md border-border bg-card">
+          <DialogHeader>
+            <DialogTitle>Save to Application Board</DialogTitle>
+            <DialogDescription className="text-xs">
+              Name this application so it&apos;s easy to spot on your Kanban board.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleConfirmSaveToBoard} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="quick-save-company">Company Name</Label>
+              <Input
+                id="quick-save-company"
+                required
+                placeholder="e.g. Monzo"
+                value={saveCompany}
+                onChange={(e) => setSaveCompany(e.target.value)}
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="quick-save-role">Role Title</Label>
+              <Input
+                id="quick-save-role"
+                required
+                placeholder="e.g. Senior Frontend Engineer"
+                value={saveRoleTitle}
+                onChange={(e) => setSaveRoleTitle(e.target.value)}
+                className="bg-background"
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              Save Application
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
