@@ -225,21 +225,17 @@ export function useJobDiscovery(
         ...computeHeuristicMatchScore(job, profile),
       }));
 
-      let merged: DiscoveredJob[] = [];
-      setJobs((prev) => {
-        // Preserve existing feedback on already-known jobs
-        const prevMap = new Map(prev.map((j) => [`${j.source}:${j.externalId}`, j]));
-        const combined = scoredNew.map((j) => {
-          const existing = prevMap.get(`${j.source}:${j.externalId}`);
-          return existing
-            ? { ...j, feedback: existing.feedback, feedbackNote: existing.feedbackNote }
-            : j;
-        });
-        merged = deduplicateJobs([...combined, ...prev]).sort(
-          (a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0)
-        );
-        return merged.slice(0, 150);
+      const prevMap = new Map(jobs.map((j) => [`${j.source}:${j.externalId}`, j]));
+      const combined = scoredNew.map((j) => {
+        const existing = prevMap.get(`${j.source}:${j.externalId}`);
+        return existing
+          ? { ...j, feedback: existing.feedback, feedbackNote: existing.feedbackNote }
+          : j;
       });
+      const merged = deduplicateJobs([...combined, ...jobs]).sort(
+        (a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0)
+      );
+      setJobs(merged.slice(0, 150));
 
       setScanErrors(errors);
       setScanning(false);
@@ -269,7 +265,7 @@ export function useJobDiscovery(
 
       return merged;
     },
-    [watchers, profile, user]
+    [watchers, jobs, profile, user]
   );
 
   const runAiDeepScore = useCallback(

@@ -10,6 +10,7 @@ import {
   Moon,
   Sun,
   Trees,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthDialog } from "@/components/auth/AuthDialog";
+import { HelpDialog } from "@/components/layout/HelpDialog";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -35,18 +37,22 @@ export function TopNav() {
   const location = useLocation();
   const { user, signOut, isSupabaseConfigured } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
     return document.documentElement.classList.contains("dark") || localStorage.getItem("cv-spruce-theme") === "dark";
   });
 
   useEffect(() => {
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (isDark) {
       document.documentElement.classList.add("dark");
       localStorage.setItem("cv-spruce-theme", "dark");
+      themeMeta?.setAttribute("content", "#212900");
     } else {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("cv-spruce-theme", "light");
+      themeMeta?.setAttribute("content", "#CCFF00");
     }
   }, [isDark]);
 
@@ -92,13 +98,24 @@ export function TopNav() {
             })}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setHelpOpen(true)}
+              aria-label="How CV Spruce works"
+              title="How CV Spruce works"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsDark((prev) => !prev)}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className="h-9 w-9 rounded-full"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -148,6 +165,7 @@ export function TopNav() {
       </nav>
 
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </>
   );
 }
