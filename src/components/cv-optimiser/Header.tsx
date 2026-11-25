@@ -2,10 +2,11 @@ import { memo } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Bot, BrainCircuit } from "lucide-react";
 import { ModelType } from "@/lib/types";
-import { MODEL_FULL_LABELS } from "@/lib/constants";
+import { MODEL_FULL_LABELS, getModelOptionLabel } from "@/lib/constants";
 
 interface HeaderProps {
   selectedModel?: ModelType;
+  selectedModelId?: string;
 }
 
 const modelInfo = {
@@ -15,9 +16,12 @@ const modelInfo = {
 };
 
 /** Hero header with app title and description */
-const Header = ({ selectedModel = "gemini" }: HeaderProps) => {
+const Header = ({ selectedModel = "gemini", selectedModelId }: HeaderProps) => {
   const info = modelInfo[selectedModel];
   const Icon = info.icon;
+  const badgeLabel = selectedModelId
+    ? `Powered by ${getModelOptionLabel(selectedModel, selectedModelId)}`
+    : info.label;
 
   return (
     <header className="relative overflow-hidden py-12 md:py-20">
@@ -36,7 +40,7 @@ const Header = ({ selectedModel = "gemini" }: HeaderProps) => {
         >
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
             <Icon className="h-4 w-4" />
-            {info.label}
+            {badgeLabel}
           </div>
         </motion.div>
 

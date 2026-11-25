@@ -2,11 +2,12 @@ import {
   TailorStyle,
   CoverLetterStyle,
   ApiWorkload,
-  AiResponse
+  AiResponse,
+  ThinkingLevel,
 } from "./types";
 import { validateAiResponse } from "./validation-utils";
 import { generateSystemInstruction, generateUserPrompt } from "./prompt-utils";
-import { ANTHROPIC_VERSION, MODEL_IDS } from "./constants";
+import { ANTHROPIC_VERSION, MODEL_IDS, resolveThinkingLevel } from "./constants";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
@@ -17,7 +18,9 @@ export async function callClaudeApi(
   keywords: string = "",
   styles: TailorStyle[] = ["Precision"],
   coverLetterStyle: CoverLetterStyle = "Middle",
-  apiWorkload: ApiWorkload = "Normal"
+  apiWorkload: ApiWorkload = "Normal",
+  modelId: string = MODEL_IDS.claude,
+  thinkingLevel: ThinkingLevel = "auto"
 ): Promise<AiResponse> {
   if (!apiKey.trim()) {
     throw new Error("Please enter your Claude API key.");
@@ -34,14 +37,17 @@ export async function callClaudeApi(
 
   systemInstruction += "\n\nIMPORTANT: Output ONLY the raw JSON object. Do not include markdown formatting like ```json ... ``` or any other text.";
 
-  const requestBody = {
-    model: MODEL_IDS.claude,
-    max_tokens: 4096,
+  const resolvedThinking = resolveThinkingLevel(thinkingLevel, apiWorkload);
+  const requestBody: Record<string, unknown> = {
+    model: modelId,
+    max_tokens: resolvedThinking === "high" ? 8192 : 4096,
     system: systemInstruction,
-    messages: [
-      { role: "user", content: userPrompt }
-    ]
+    messages: [{ role: "user", content: userPrompt }],
   };
+
+  if (resolvedThinking === "high") {
+    requestBody.thinking = { type: "enabled", budget_tokens: 4096 };
+  }
 
   const response = await fetch(CLAUDE_API_URL, {
     method: "POST",

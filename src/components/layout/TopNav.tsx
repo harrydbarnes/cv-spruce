@@ -134,10 +134,13 @@ export function TopNav() {
                 variant="default"
                 size="sm"
                 onClick={() => setAuthOpen(true)}
-                className="gap-1.5 rounded-full"
+                className="shrink-0 gap-1.5 rounded-full px-3"
               >
                 <LogIn className="h-3.5 w-3.5" />
-                <span>{isSupabaseConfigured ? "Sign In" : "Sync / Account"}</span>
+                <span className="sm:hidden">{isSupabaseConfigured ? "Sign In" : "Sync"}</span>
+                <span className="hidden sm:inline">
+                  {isSupabaseConfigured ? "Sign In" : "Sync / Account"}
+                </span>
               </Button>
             )}
           </div>
