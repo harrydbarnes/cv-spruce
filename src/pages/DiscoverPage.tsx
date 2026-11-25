@@ -16,6 +16,7 @@ import {
   ArrowRight,
   AlertCircle,
   Clock,
+  Wand2,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -213,6 +214,48 @@ export default function DiscoverPage() {
     navigate(`/applications/${app.id}`);
   };
 
+  const handleSyncFromProfile = async () => {
+    const roles = profile.preferences.targetRoles.filter(Boolean);
+    const locations = profile.preferences.preferredLocations.filter(Boolean);
+    const remoteOnly = profile.preferences.workMode === "remote";
+
+    if (roles.length === 0 && !profile.basics.headline.trim()) {
+      toast({
+        title: "Add Target Roles in Profile First",
+        description: "Set your headline or target roles on the Profile tab so Bruce can build watchers for you.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const queries = roles.length > 0 ? roles.slice(0, 3) : [profile.basics.headline.trim()];
+    const hasAdzuna = Boolean(adzunaAppId.trim() && adzunaAppKey.trim());
+    let added = 0;
+
+    for (const q of queries) {
+      const exists = watchers.some(
+        (w) => w.query.toLowerCase() === q.toLowerCase() && w.source === (hasAdzuna ? "adzuna" : "remotive")
+      );
+      if (exists) continue;
+      await addWatcher({
+        name: `${q}${locations[0] ? ` • ${locations[0]}` : ""}`,
+        source: hasAdzuna ? "adzuna" : "remotive",
+        query: q,
+        location: hasAdzuna ? locations[0] || "UK" : undefined,
+        remoteOnly,
+        enabled: true,
+      });
+      added += 1;
+    }
+
+    toast({
+      title: added > 0 ? `Added ${added} Profile Watcher${added > 1 ? "s" : ""}` : "Watchers Already Synced",
+      description: added > 0
+        ? "Click 'Scan Watchers Now' to pull roles matching your Master Profile."
+        : "Your current watchers already match your Profile target roles.",
+    });
+  };
+
   const visibleJobs = useMemo(() => {
     const q = filterText.trim().toLowerCase();
     return jobs.filter((job) => {
@@ -284,19 +327,29 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Watchers Panel */}
+        {/* Watchers Panel (below results on mobile, left sidebar on desktop) */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="border-border bg-card lg:col-span-1">
+          <Card className="order-2 border-border bg-card lg:order-1 lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <SlidersHorizontal className="h-4 w-4 text-primary" />
                 Job Watchers ({watchers.length})
               </CardTitle>
               <CardDescription className="text-xs">
-                Watch open boards, UK Adzuna listings, or Greenhouse / Lever / Ashby company slugs (e.g. <code>monzo</code>, <code>deliveroo</code>, <code>incident.io</code>).
+                Watch open boards, UK Adzuna listings, or Greenhouse / Lever / Ashby company slugs (e.g. <code>monzo</code>, <code>deliveroo</code>, <code>synthesia</code>).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleSyncFromProfile()}
+                className="w-full gap-1.5 text-xs font-semibold"
+              >
+                <Wand2 className="h-3.5 w-3.5 text-primary" />
+                Sync Watchers from My Profile
+              </Button>
               {/* UK Quick-Add Presets */}
               <div className="space-y-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -474,8 +527,8 @@ export default function DiscoverPage() {
             </CardContent>
           </Card>
 
-          {/* Feed Results */}
-          <div className="space-y-4 lg:col-span-2">
+          {/* Feed Results (shown first on mobile, right 2 columns on desktop) */}
+          <div className="order-1 space-y-4 lg:order-2 lg:col-span-2">
             {/* Filter bar */}
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3">
               <Input
