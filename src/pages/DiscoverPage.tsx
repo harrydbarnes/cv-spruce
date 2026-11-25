@@ -54,7 +54,7 @@ const UK_QUICK_PRESETS: Array<{
 }> = [
   { label: "Monzo (UK)", source: "greenhouse", slug: "monzo", query: "" },
   { label: "Deliveroo (UK)", source: "greenhouse", slug: "deliveroo", query: "" },
-  { label: "incident.io (Ashby UK)", source: "ashby", slug: "incident.io", query: "" },
+  { label: "Synthesia (Ashby UK)", source: "ashby", slug: "synthesia", query: "" },
 ];
 
 export default function DiscoverPage() {
