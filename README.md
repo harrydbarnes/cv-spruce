@@ -1,96 +1,81 @@
 # CV Spruce 🌲
 
-## Project Info
+Welcome to **CV Spruce** — your AI-powered career co-pilot, featuring **Bruce**, the CV Spruce agent.
 
-Welcome to **CV Spruce** (formerly Precision CV)! 🎯
-
-This isn't just another CV tool; it's your personal career wingman powered by the cutting-edge **Gemini 2.5 Flash**, **Claude 3.5 Sonnet**, and **GPT-4o** models.
-
-Our intention? To stop you from tearing your hair out over formatting and keyword matching. We take your existing CV and a job description, mix them together with a little AI magic, and produce a tailored masterpiece that screams "HIRE ME!"
+Use it **instantly with zero login** in Guest/Local Mode (preserving the original 1-screen Quick Tailor experience), or connect **Supabase** for multi-device accounts, cloud sync, and automated daily job scanning.
 
 ## Features ✨
 
-*   **Multi-Model Support**: Choose between Google Gemini, Anthropic Claude, and OpenAI GPT-4o for your optimizations.
-*   **Smart Job Specification Input**:
-    *   Paste text directly.
-    *   Upload a file (PDF, DOCX, TXT).
-    *   Fetch directly from a URL.
-*   **CV Parsing**: Upload your current CV in PDF or DOCX format.
-*   **Tailored Optimization**:
-    *   **Keywords**: Add specific keywords you want to target.
-    *   **Style**: Choose between **Precision** (match spec), **Ruthless** (cut fluff), or **Ambitious** (push boundaries).
-    *   **Cover Letter**: Generate Quick, Formal, or Detailed cover letters.
-*   **Flexible Workloads**:
-    *   **Normal**: Full analysis, CV, Cover Letter, Q&A, and Industry Insights.
-    *   **Reduced**: Analysis, CV, and Cover Letter.
-    *   **Minimal**: Analysis and CV only (fastest).
-*   **Local Privacy**: Your API keys and CV data are stored in your browser's local storage (if you choose) and are never sent to our servers, only directly to the AI providers.
+* **Quick Tailor (`/`)**: The classic instant CV Spruce experience — upload a CV (or load from your Master Profile), paste/fetch a job spec, pick **Gemini 2.5 Flash**, **Claude Sonnet 4**, or **GPT-4o**, and get a match score, skill gaps, tailored CV, cover letter, interview Q&As, and industry updates.
+* **Master Career Profile (`/profile`)**:
+  * One verified source of truth with a **Profile Strength Meter**.
+  * **1-Click CV Import**: Upload PDF/DOCX/TXT and let Bruce extract structured roles, skills, and education.
+  * **Bruce's Career Brief & Preferences**: Share your career story, target roles, work mode, salary floor, and dealbreakers — plus inspect what Bruce learns from your 👍/👎 job ratings.
+  * **Strict Factual Grounding**: Bruce never invents experience, roles, or metrics and honestly surfaces missing requirements as gaps.
+* **Automated Job Discovery (`/discover`)**:
+  * Watch open job feeds (**Remotive**, **Arbeitnow**, **Hacker News / YC Who is Hiring**) and any target company's **Greenhouse** or **Lever** career board slug (e.g. `stripe`, `linear`, `monzo`).
+  * Instant local match scoring + optional deep **Bruce AI Re-Ranking**.
+  * Rate roles with **More like this / Pass** to sharpen Bruce's ranking loop, or click **Spruce & Apply** for 1-click application prep.
+* **Application Monitoring Board & Bespoke Studio (`/board`, `/applications/:id`)**:
+  * Kanban pipeline (`Saved` → `Drafting` → `Applied` → `Interviewing` → `Offer` / `Archived`) with KPI strip, follow-up date reminders, and 7-day stale-application nudges.
+  * **1-Click Bespoke Kit**: Generate a fact-grounded CV, cover letter, and interview Q&A per role.
+  * **Refine with Bruce Chat**: Iterate conversationally with automatic version history & 1-click restore.
+  * **Clean ATS-Friendly PDF & Markdown Export**: Print-styled monochrome PDF export and `.md` download.
+* **Optional Cloud Accounts & Scheduled Scanning**:
+  * Powered by **Supabase** (Auth + PostgreSQL with Row-Level Security + Edge Functions + `pg_cron`).
+  * Gracefully runs in **Local-First Guest Mode** whenever Supabase environment variables are omitted.
 
-## How can I use this myself?
-
-You have a few options to get started with CV Spruce:
-
-### 1. Use it as is!
-Simply open the application in your browser and start optimizing your CV immediately. Your API key is stored locally in your session (or local storage if saved), so your data remains private.
-
-### 2. Fork it & Customize 🍴
-Want to add your own flair? Feel free to fork this repository! We love open source. If you build something cool or fix a bug, please **submit a Pull Request**. We'd love to see what you create!
-
-### 3. Self-Host 🏠
-Prefer to run it on your own machine? No problem!
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-#### Configuration
-
-To run the application, you will need an API Key from one of the supported providers:
-*   [Google Gemini API Key](https://aistudio.google.com/)
-*   [Anthropic Claude API Key](https://console.anthropic.com/)
-*   [OpenAI API Key](https://platform.openai.com/)
-
-You can enter these keys directly in the application UI. You can choose to save them to your browser's local storage for convenience, or enter them each time for maximum security.
-
-#### Installation
-
-Follow these steps:
+## Getting Started 🚀
 
 ```sh
-# Step 1: Clone the repository.
+# 1. Clone the repository
 git clone https://github.com/harrydbarnes/cv-spruce.git
-
-# Step 2: Navigate to the project directory.
 cd cv-spruce
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 2. Install dependencies (Bun)
+bun install
 
-# Step 4: Verify API Key Storage (Optional)
-# This script verifies that the API key storage UI works correctly.
-# Requires python and playwright.
-pip install playwright
-playwright install
-python verify_api_key.py
-
-# Step 5: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# 3. Start the dev server
+bun run dev
 ```
 
-## What technologies are used for this project? 🛠️
+### Verification Commands
 
-This project is a modern web application built with a robust tech stack:
+```sh
+bun run typecheck   # TypeScript strict check
+bun run lint        # ESLint
+bun run test        # Vitest unit & component tests
+bun run build       # Production bundle
+```
 
-- **[Vite](https://vitejs.dev/)**: The build tool that makes development lightning fast.
-- **[React](https://react.dev/)**: The library for building our user interface.
-- **[TypeScript](https://www.typescriptlang.org/)**: For type-safe, robust code.
-- **[Tailwind CSS](https://tailwindcss.com/)**: Utility-first CSS framework for styling.
-- **[shadcn/ui](https://ui.shadcn.com/)**: Beautifully designed, accessible components.
-- **[Framer Motion](https://www.framer.com/motion/)**: For smooth, declarative animations.
-- **[PDF.js](https://mozilla.github.io/pdf.js/) & [Mammoth.js](https://github.com/mwilliamson/mammoth.js)**: For client-side document parsing (PDF & DOCX).
-- **[Sonner](https://sonner.emilkowal.ski/)**: An opinionated toast component for React.
-- **Client-Side AI**: Direct integration with Gemini, Claude, and OpenAI APIs from the browser.
+## Enabling Cloud Accounts & Daily Job Scanning (Optional) ☁️
 
-## Deployment 🚀
+1. Create a free [Supabase](https://supabase.com/) project.
+2. Run [`supabase/migrations/001_initial_schema.sql`](./supabase/migrations/001_initial_schema.sql) in the Supabase SQL Editor (creates `career_profiles`, `job_watchers`, `discovered_jobs`, and `applications` with strict RLS).
+3. Copy `.env.example` to `.env` and set:
+   ```env
+   VITE_SUPABASE_URL=https://<your-project>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<your-anon-key>
+   ```
+   For GitHub Pages deployments, add those two keys as **Repository Secrets** (`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`).
+4. (Optional) Deploy the Edge Functions for daily `pg_cron` scanning and server-side URL extraction:
+   ```sh
+   supabase functions deploy job-scanner
+   supabase functions deploy fetch-job-url
+   ```
 
-You can deploy this project using any static site hosting service like Vercel, Netlify, or GitHub Pages.
+## Tech Stack 🛠️
 
-Happy optimizing! ✨
+* **Vite 6** + **React 18** + **TypeScript** + **VitePWA** (installable desktop/mobile PWA with route code-splitting)
+* **Tailwind CSS** + **shadcn/ui** + **Framer Motion**
+* **Supabase** (Optional Auth, Postgres RLS, Edge Functions with adaptive inactivity scan decay & 30-day job pruning)
+* **PDF.js** & **Mammoth.js** for client-side document parsing
+* **GitHub Actions**: Automated CI (typecheck, lint, test, build), GitHub Pages deploy, and Dependabot
+
+## Parked / Future Roadmap 🗺️
+
+* **High-Match Email / Webhook Digests** *(Parked for now)*: Optional Resend email or Discord/Slack notification triggered by `job-scanner` only when a newly discovered role scores ≥ 80%, paired with adaptive scan decay.
+* **Lightweight Browser Extension**: 1-click "Send current job tab to CV Spruce" + quick copy of drafted Form Q&A answers.
+* **Reed.co.uk API Integration**: Additional UK-native job board alongside Adzuna UK (`gb`), Ashby, Greenhouse, and Lever.
+
+Happy sprucing! 🌲✨

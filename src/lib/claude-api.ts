@@ -6,7 +6,7 @@ import {
 } from "./types";
 import { validateAiResponse } from "./validation-utils";
 import { generateSystemInstruction, generateUserPrompt } from "./prompt-utils";
-import { ANTHROPIC_VERSION } from "./constants";
+import { ANTHROPIC_VERSION, MODEL_IDS } from "./constants";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
@@ -35,7 +35,7 @@ export async function callClaudeApi(
   systemInstruction += "\n\nIMPORTANT: Output ONLY the raw JSON object. Do not include markdown formatting like ```json ... ``` or any other text.";
 
   const requestBody = {
-    model: "claude-3-5-sonnet-20240620",
+    model: MODEL_IDS.claude,
     max_tokens: 4096,
     system: systemInstruction,
     messages: [
