@@ -224,8 +224,8 @@ const Index = () => {
 
       setResults(data);
       toast({ title: "Success", description: "Your optimised content is ready." });
-    } catch (err: any) {
-      handleError(err.message || "An unexpected error occurred.");
+    } catch (err: unknown) {
+      handleError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
