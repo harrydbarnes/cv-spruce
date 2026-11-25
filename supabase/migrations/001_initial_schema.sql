@@ -62,7 +62,7 @@ create table if not exists public.job_watchers (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  source text not null check (source in ('remotive', 'arbeitnow', 'hn_yc', 'greenhouse', 'lever', 'ashby', 'adzuna', 'jsearch')),
+  source text not null check (source in ('remotive', 'arbeitnow', 'hn_yc', 'greenhouse', 'lever', 'ashby', 'adzuna', 'reed', 'jsearch')),
   query text not null default '',
   company_slug text,
   location text,

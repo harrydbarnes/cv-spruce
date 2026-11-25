@@ -1,5 +1,5 @@
 import { callStructuredAi } from "./ai-client";
-import type { ModelType } from "./types";
+import type { ModelType, ThinkingLevel } from "./types";
 
 export interface ProfileBasics {
   fullName: string;
@@ -220,7 +220,9 @@ export function profileToCvMarkdown(profile: CareerProfile): string {
 export async function parseCvToProfileWithAi(
   provider: ModelType,
   apiKey: string,
-  rawCvText: string
+  rawCvText: string,
+  modelId?: string,
+  thinkingLevel?: ThinkingLevel
 ): Promise<Partial<CareerProfile>> {
   const systemPrompt = `You are a precise CV parser. Extract ONLY facts explicitly present in the candidate's CV into this JSON structure:
 {
@@ -236,6 +238,8 @@ Never invent missing fields — use empty strings or empty arrays when not prese
 
   const parsed = await callStructuredAi<Partial<CareerProfile>>({
     provider,
+    modelId,
+    thinkingLevel,
     apiKey,
     systemPrompt,
     userPrompt: `Extract the structured profile from this CV:\n\n${rawCvText}`,
@@ -263,4 +267,51 @@ Never invent missing fields — use empty strings or empty arrays when not prese
     certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
     rawCvText,
   };
+}
+
+/**
+ * Turns a 4-question conversational interview with Bruce into a crisp Career Brief
+ * and structured target preferences (Jack & Jill-inspired onboarding).
+ */
+export async function conductBruceOnboardingWithAi(params: {
+  provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
+  apiKey: string;
+  answers: Array<{ question: string; answer: string }>;
+}): Promise<{
+  careerStory: string;
+  targetRoles: string[];
+  preferredLocations: string[];
+  workMode: WorkModePreference;
+  minSalary: string;
+  dealbreakers: string[];
+  searchStatus: CareerPreferences["searchStatus"];
+}> {
+  const systemPrompt = `You are Bruce, the CV Spruce career agent. Synthesise the candidate's onboarding answers into a sharp, authentic Career Brief and structured job preferences.
+Use UK English spelling. Only include details the user actually stated.
+Return JSON:
+{
+  "careerStory": "2-3 cohesive sentences summarising their story, strengths, and ideal next move",
+  "targetRoles": ["Role 1", "Role 2"],
+  "preferredLocations": ["London", "UK Remote"],
+  "workMode": "any" | "remote" | "hybrid" | "onsite",
+  "minSalary": "e.g. £85,000 or empty string if not mentioned",
+  "dealbreakers": ["dealbreaker 1"],
+  "searchStatus": "actively_looking" | "preparing" | "open_passively"
+}`;
+
+  const userPrompt = params.answers
+    .map((a, idx) => `Q${idx + 1}: ${a.question}\nA${idx + 1}: ${a.answer}`)
+    .join("\n\n");
+
+  return callStructuredAi({
+    provider: params.provider,
+    modelId: params.modelId,
+    thinkingLevel: params.thinkingLevel,
+    apiKey: params.apiKey,
+    systemPrompt,
+    userPrompt,
+    temperature: 0.3,
+  });
 }

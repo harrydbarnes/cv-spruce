@@ -1,12 +1,13 @@
 import { ANTHROPIC_VERSION, DEFAULT_TEMPERATURE, MODEL_IDS } from "./constants";
-import type { ModelType } from "./types";
+import type { ModelType, ThinkingLevel } from "./types";
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_IDS.gemini}:generateContent`;
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 
 export interface StructuredAiRequest {
   provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
   apiKey: string;
   systemPrompt: string;
   userPrompt: string;
@@ -26,10 +27,12 @@ export function parseJsonFromModel<T>(raw: string): T {
 
 /**
  * Unified JSON completion helper across Gemini, OpenAI, and Claude.
- * Used by Career Profile CV import, Job Match Scoring, and Bruce Chat Refinement.
+ * Used by Career Profile CV import, Job Match Scoring, Form Q&A, Onboarding Interview, and Bruce Chat Refinement.
  */
 export async function callStructuredAi<T>({
   provider,
+  modelId,
+  thinkingLevel = "auto",
   apiKey,
   systemPrompt,
   userPrompt,
@@ -39,10 +42,15 @@ export async function callStructuredAi<T>({
     throw new Error(`Please enter your ${provider} API key to use Bruce AI features.`);
   }
 
+  const activeModel = modelId || MODEL_IDS[provider];
+  const resolvedThinking = thinkingLevel === "auto" ? "medium" : thinkingLevel;
   const strictSystem = `${systemPrompt}\n\nIMPORTANT: Return ONLY a valid raw JSON object with no markdown fences or extra prose.`;
 
   if (provider === "gemini") {
-    const res = await fetch(GEMINI_URL, {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      activeModel
+    )}:generateContent`;
+    const res = await fetch(geminiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -54,6 +62,7 @@ export async function callStructuredAi<T>({
         generationConfig: {
           temperature,
           responseMimeType: "application/json",
+          thinkingConfig: { thinkingLevel: resolvedThinking.toUpperCase() },
         },
       }),
     });
@@ -77,8 +86,8 @@ export async function callStructuredAi<T>({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: MODEL_IDS.openai,
-        temperature,
+        model: activeModel,
+        reasoning_effort: resolvedThinking,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: strictSystem },
@@ -99,6 +108,16 @@ export async function callStructuredAi<T>({
   }
 
   // Claude
+  const claudeBody: Record<string, unknown> = {
+    model: activeModel,
+    max_tokens: resolvedThinking === "high" ? 8192 : 4096,
+    system: strictSystem,
+    messages: [{ role: "user", content: userPrompt }],
+  };
+  if (resolvedThinking === "high") {
+    claudeBody.thinking = { type: "enabled", budget_tokens: 4096 };
+  }
+
   const res = await fetch(CLAUDE_URL, {
     method: "POST",
     headers: {
@@ -107,13 +126,7 @@ export async function callStructuredAi<T>({
       "content-type": "application/json",
       "anthropic-dangerously-allow-browser": "true",
     },
-    body: JSON.stringify({
-      model: MODEL_IDS.claude,
-      max_tokens: 4096,
-      temperature,
-      system: strictSystem,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
+    body: JSON.stringify(claudeBody),
   });
 
   if (!res.ok) {

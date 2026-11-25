@@ -269,12 +269,24 @@ export function useJobDiscovery(
   );
 
   const runAiDeepScore = useCallback(
-    async (provider: ModelType, apiKey: string) => {
+    async (
+      provider: ModelType,
+      apiKey: string,
+      modelId?: string,
+      thinkingLevel?: "auto" | "low" | "medium" | "high"
+    ) => {
       const visible = jobs.filter((j) => j.feedback !== "hidden" && j.feedback !== "disliked");
       if (visible.length === 0) return;
       setAiScoring(true);
       try {
-        const scoresMap = await scoreJobsWithAi(provider, apiKey, visible, profile);
+        const scoresMap = await scoreJobsWithAi(
+          provider,
+          apiKey,
+          visible,
+          profile,
+          modelId,
+          thinkingLevel
+        );
         setJobs((prev) =>
           prev
             .map((j) => {
