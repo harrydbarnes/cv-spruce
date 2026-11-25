@@ -37,22 +37,20 @@ const OutputCard = ({ title, icon, content, copyText, index, originalText }: Out
     }
   };
 
-  // Calculate diff asynchronously to avoid blocking the main thread on render
+  // Calculate diff lazily only when the user actually toggles "Show Changes"
   const [diff, setDiff] = useState<Diff.Change[] | null>(null);
 
   useEffect(() => {
-    if (!originalText) {
-      setDiff(null);
+    if (!showDiff || !originalText) {
       return;
     }
 
-    // Defer the expensive diff calculation to the next tick
     const timer = setTimeout(() => {
       setDiff(Diff.diffWords(originalText, copyText));
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [originalText, copyText]);
+  }, [showDiff, originalText, copyText]);
 
   // Render diff elements only when showing diff or when diff changes
   const diffElements = useMemo(() => {

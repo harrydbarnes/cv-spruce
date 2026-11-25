@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -21,6 +21,9 @@ import {
   Code2,
   Package,
   ClipboardCheck,
+  Mic,
+  MicOff,
+  PoundSterling,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,12 +52,16 @@ import {
   PDF_THEME_OPTIONS,
   refineDocumentWithBruce,
   draftApplicationAnswerWithBruce,
+  evaluateMockInterviewAnswerWithBruce,
+  generateUkSalaryCoachWithBruce,
   downloadMarkdownFile,
   printCleanDocument,
   markdownToPrintHtml,
   extractAtsKeywordCoverage,
   type ApplicationStatus,
   type PdfTheme,
+  type MockInterviewEvaluation,
+  type UkSalaryCoachPlan,
 } from "@/lib/application-utils";
 import { downloadApplyPackZip } from "@/lib/zip-pack";
 import type { ModelType } from "@/lib/types";
@@ -103,6 +110,19 @@ export default function ApplicationDetailPage() {
   const [draftedAnswers, setDraftedAnswers] = useState<
     Array<{ id: string; question: string; answer: string; keyPointsUsed: string[] }>
   >([]);
+
+  // Interactive Mock Interview state
+  const [mockIdx, setMockIdx] = useState(0);
+  const [mockCustomQ, setMockCustomQ] = useState("");
+  const [mockAnswer, setMockAnswer] = useState("");
+  const [evaluatingMock, setEvaluatingMock] = useState(false);
+  const [mockFeedback, setMockFeedback] = useState<MockInterviewEvaluation | null>(null);
+  const [listeningMock, setListeningMock] = useState(false);
+  const mockRecRef = useRef<{ stop: () => void } | null>(null);
+
+  // UK Salary Coach state
+  const [coachingSalary, setCoachingSalary] = useState(false);
+  const [salaryPlan, setSalaryPlan] = useState<UkSalaryCoachPlan | null>(null);
 
   const keywordCoverage = useMemo(
     () => extractAtsKeywordCoverage(app?.jobSpecText ?? "", app?.tailoredCv ?? ""),
@@ -379,6 +399,119 @@ export default function ApplicationDetailPage() {
       title: "Apply Pack Downloaded",
       description: `Bundled ${entries.length} documents into a .zip archive.`,
     });
+  };
+
+  const activeMockQuestion =
+    app.interviewQna[mockIdx]?.question ||
+    mockCustomQ.trim() ||
+    `Tell me about a challenging project relevant to ${app.roleTitle} at ${app.company}.`;
+
+  const toggleMockVoice = () => {
+    const Ctor =
+      typeof window !== "undefined"
+        ? ((window as unknown as Record<string, unknown>).SpeechRecognition ||
+            (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
+        : undefined;
+    if (!Ctor) {
+      toast({
+        title: "Voice Input Unavailable",
+        description: "Your browser does not support speech dictation.",
+      });
+      return;
+    }
+    if (listeningMock && mockRecRef.current) {
+      mockRecRef.current.stop();
+      setListeningMock(false);
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new (Ctor as any)();
+    rec.lang = "en-GB";
+    rec.continuous = false;
+    rec.interimResults = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      const t = e.results?.[0]?.[0]?.transcript ?? "";
+      if (t) setMockAnswer((prev) => `${prev ? `${prev} ` : ""}${t}`);
+    };
+    rec.onerror = () => setListeningMock(false);
+    rec.onend = () => setListeningMock(false);
+    mockRecRef.current = rec;
+    setListeningMock(true);
+    rec.start();
+  };
+
+  const handleEvaluateMock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mockAnswer.trim()) return;
+    if (!activeKey.trim()) {
+      toast({
+        title: "API Key Required",
+        description: "Tap the 🔑 button in the top bar to save an AI key first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setEvaluatingMock(true);
+    try {
+      const feedback = await evaluateMockInterviewAnswerWithBruce({
+        provider: model,
+        modelId: activeModelId,
+        thinkingLevel,
+        apiKey: activeKey,
+        question: activeMockQuestion,
+        userAnswer: mockAnswer.trim(),
+        company: app.company,
+        roleTitle: app.roleTitle,
+        masterProfileText: masterCvText || app.tailoredCv,
+        jobSpecText: app.jobSpecText,
+      });
+      setMockFeedback(feedback);
+    } catch (err) {
+      toast({
+        title: "Evaluation failed",
+        description: err instanceof Error ? err.message : "Could not evaluate answer.",
+        variant: "destructive",
+      });
+    } finally {
+      setEvaluatingMock(false);
+    }
+  };
+
+  const handleSalaryCoach = async () => {
+    if (!activeKey.trim()) {
+      toast({
+        title: "API Key Required",
+        description: "Tap the 🔑 button in the top bar to save an AI key first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCoachingSalary(true);
+    try {
+      const plan = await generateUkSalaryCoachWithBruce({
+        provider: model,
+        modelId: activeModelId,
+        thinkingLevel,
+        apiKey: activeKey,
+        company: app.company,
+        roleTitle: app.roleTitle,
+        location: app.location,
+        listedSalary: app.salary,
+        targetFloor: profile.preferences.minSalary,
+        masterProfileText: masterCvText || app.tailoredCv,
+        jobSpecText: app.jobSpecText,
+      });
+      setSalaryPlan(plan);
+    } catch (err) {
+      toast({
+        title: "Salary Coach failed",
+        description: err instanceof Error ? err.message : "Could not build negotiation brief.",
+        variant: "destructive",
+      });
+    } finally {
+      setCoachingSalary(false);
+    }
   };
 
   return (
@@ -922,11 +1055,243 @@ export default function ApplicationDetailPage() {
                 </Card>
               </TabsContent>
 
-              {/* Interview Q&A Tab */}
-              <TabsContent value="qna" className="mt-4">
+              {/* Interactive Mock Interview, UK Salary Coach & Study Q&A Tab */}
+              <TabsContent value="qna" className="mt-4 space-y-4">
+                {/* 1. Interactive Mock Interview */}
+                <Card className="border-border bg-card">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <MessageSquare className="h-5 w-5 text-primary" />
+                          Interactive Mock Interview
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Practise answering out loud or in writing — Bruce scores STAR structure &amp; sharpens your reply.
+                        </CardDescription>
+                      </div>
+                      {app.interviewQna.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={mockIdx === 0}
+                            onClick={() => {
+                              setMockIdx((i) => Math.max(0, i - 1));
+                              setMockFeedback(null);
+                              setMockAnswer("");
+                            }}
+                          >
+                            Prev
+                          </Button>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {mockIdx + 1}/{app.interviewQna.length}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={mockIdx >= app.interviewQna.length - 1}
+                            onClick={() => {
+                              setMockIdx((i) => Math.min(app.interviewQna.length - 1, i + 1));
+                              setMockFeedback(null);
+                              setMockAnswer("");
+                            }}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="rounded-xl border border-border bg-background/70 p-3.5 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                        Bruce asks:
+                      </p>
+                      <p className="text-sm font-semibold">{activeMockQuestion}</p>
+                      {app.interviewQna.length === 0 && (
+                        <Input
+                          placeholder="Or enter a custom question to practise..."
+                          value={mockCustomQ}
+                          onChange={(e) => setMockCustomQ(e.target.value)}
+                          className="bg-card text-xs mt-2"
+                        />
+                      )}
+                    </div>
+
+                    <form onSubmit={handleEvaluateMock} className="space-y-2.5">
+                      <Textarea
+                        rows={4}
+                        placeholder="Type or dictate your STAR answer..."
+                        value={mockAnswer}
+                        onChange={(e) => setMockAnswer(e.target.value)}
+                        className="bg-background text-sm"
+                        disabled={evaluatingMock}
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={listeningMock ? "destructive" : "outline"}
+                          onClick={toggleMockVoice}
+                          className="gap-1.5 text-xs"
+                        >
+                          {listeningMock ? (
+                            <MicOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Mic className="h-3.5 w-3.5" />
+                          )}
+                          {listeningMock ? "Stop Dictation" : "Speak Answer"}
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={evaluatingMock || !mockAnswer.trim()}
+                          className="gap-1.5"
+                        >
+                          {evaluatingMock ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {evaluatingMock ? "Evaluating..." : "Score My Answer"}
+                        </Button>
+                      </div>
+                    </form>
+
+                    {mockFeedback && (
+                      <div className="space-y-3 rounded-xl border border-primary/40 bg-background/80 p-4 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm">Bruce&apos;s Feedback</span>
+                          <Badge className="font-mono">{mockFeedback.score}/10</Badge>
+                        </div>
+                        {mockFeedback.strengths.length > 0 && (
+                          <div>
+                            <p className="font-semibold text-foreground mb-1">What Worked</p>
+                            <ul className="list-disc pl-4 space-y-0.5 text-card-foreground/85">
+                              {mockFeedback.strengths.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {mockFeedback.improvements.length > 0 && (
+                          <div>
+                            <p className="font-semibold text-foreground mb-1">To Tighten</p>
+                            <ul className="list-disc pl-4 space-y-0.5 text-card-foreground/85">
+                              {mockFeedback.improvements.map((s, i) => (
+                                <li key={i}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="rounded-lg border border-border bg-card p-3">
+                          <p className="font-semibold mb-1">Sharpened Version</p>
+                          <p className="leading-relaxed text-card-foreground/90">
+                            {mockFeedback.refinedAnswer}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* 2. UK Salary & Offer Coach */}
+                <Card className="border-border bg-card">
+                  <CardHeader className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <PoundSterling className="h-5 w-5 text-primary" />
+                        UK Salary &amp; Offer Coach
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        UK-calibrated comp positioning, pension/equity/hybrid levers, and ready-to-send negotiation scripts.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleSalaryCoach()}
+                      disabled={coachingSalary}
+                      className="gap-1.5 self-start sm:self-auto"
+                    >
+                      {coachingSalary ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <PoundSterling className="h-3.5 w-3.5" />
+                      )}
+                      {coachingSalary ? "Analysing..." : "Build Salary Brief"}
+                    </Button>
+                  </CardHeader>
+                  {salaryPlan && (
+                    <CardContent className="space-y-3 text-xs">
+                      <p className="rounded-lg border border-border bg-background/60 p-3 leading-relaxed">
+                        {salaryPlan.targetRangeGuidance}
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-border bg-background/60 p-3">
+                          <p className="font-semibold mb-1.5">Your Leverage Points</p>
+                          <ul className="list-disc pl-4 space-y-1 text-card-foreground/85">
+                            {salaryPlan.leveragePoints.map((pt, i) => (
+                              <li key={i}>{pt}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="rounded-lg border border-border bg-background/60 p-3">
+                          <p className="font-semibold mb-1.5">UK Total-Comp Levers</p>
+                          <ul className="list-disc pl-4 space-y-1 text-card-foreground/85">
+                            {salaryPlan.totalCompLevers.map((lv, i) => (
+                              <li key={i}>{lv}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="space-y-2 rounded-lg border border-border bg-background/60 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold">Early Screening Script</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[11px] gap-1"
+                            onClick={() => void handleCopy("sal-rec", salaryPlan.recruiterScript)}
+                          >
+                            {copiedKey === "sal-rec" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                            Copy
+                          </Button>
+                        </div>
+                        <p className="whitespace-pre-wrap text-card-foreground/90 leading-relaxed">
+                          {salaryPlan.recruiterScript}
+                        </p>
+                      </div>
+                      <div className="space-y-2 rounded-lg border border-border bg-background/60 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold">Counter-Offer Email Script</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[11px] gap-1"
+                            onClick={() => void handleCopy("sal-ctr", salaryPlan.counterOfferScript)}
+                          >
+                            {copiedKey === "sal-ctr" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                            Copy
+                          </Button>
+                        </div>
+                        <p className="whitespace-pre-wrap text-card-foreground/90 leading-relaxed">
+                          {salaryPlan.counterOfferScript}
+                        </p>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+
+                {/* 3. Study Q&A Cards */}
                 <Card className="border-border bg-card">
                   <CardHeader>
-                    <CardTitle className="text-lg">Interview Prep Q&amp;A</CardTitle>
+                    <CardTitle className="text-lg">Generated Interview Prep Q&amp;A</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {app.interviewQna.length === 0 ? (

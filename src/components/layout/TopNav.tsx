@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sparkles,
@@ -23,10 +23,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { AuthDialog } from "@/components/auth/AuthDialog";
-import { HelpDialog } from "@/components/layout/HelpDialog";
-import { ApiKeysDialog } from "@/components/layout/ApiKeysDialog";
 import { cn } from "@/lib/utils";
+
+const AuthDialog = lazy(() =>
+  import("@/components/auth/AuthDialog").then((m) => ({ default: m.AuthDialog }))
+);
+const HelpDialog = lazy(() =>
+  import("@/components/layout/HelpDialog").then((m) => ({ default: m.HelpDialog }))
+);
+const ApiKeysDialog = lazy(() =>
+  import("@/components/layout/ApiKeysDialog").then((m) => ({ default: m.ApiKeysDialog }))
+);
 
 const NAV_ITEMS = [
   { to: "/", label: "Quick Tailor", icon: Sparkles },
@@ -178,9 +185,11 @@ export function TopNav() {
         </div>
       </nav>
 
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
-      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
-      <ApiKeysDialog open={keysOpen} onOpenChange={setKeysOpen} />
+      <Suspense fallback={null}>
+        {authOpen && <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />}
+        {helpOpen && <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />}
+        {keysOpen && <ApiKeysDialog open={keysOpen} onOpenChange={setKeysOpen} />}
+      </Suspense>
     </>
   );
 }
