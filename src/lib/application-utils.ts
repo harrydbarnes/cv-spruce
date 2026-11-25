@@ -389,6 +389,122 @@ ${params.jobSpecText.slice(0, 5000)}
   });
 }
 
+export interface MockInterviewEvaluation {
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  refinedAnswer: string;
+}
+
+/**
+ * Evaluates a candidate's live practice answer for a given interview question
+ * using STAR framing and verified facts from their Master Profile.
+ */
+export async function evaluateMockInterviewAnswerWithBruce(params: {
+  provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
+  apiKey: string;
+  question: string;
+  userAnswer: string;
+  company: string;
+  roleTitle: string;
+  masterProfileText: string;
+  jobSpecText: string;
+}): Promise<MockInterviewEvaluation> {
+  const systemPrompt = `You are Bruce, an executive UK interview coach. Evaluate the candidate's practice answer for ${params.roleTitle} at ${params.company} using STAR structure (Situation, Task, Action, Result) and factual grounding from <verified_profile>.
+Use UK English spelling. Be constructive, specific, and never invent metrics not in their answer or profile.
+Return JSON:
+{
+  "score": 8,
+  "strengths": ["1-2 concrete things that worked well"],
+  "improvements": ["1-2 specific gaps or STAR improvements"],
+  "refinedAnswer": "A tightened, natural 1-paragraph version they can use"
+}`;
+
+  const userPrompt = `<question>
+${params.question}
+</question>
+
+<candidate_answer>
+${params.userAnswer}
+</candidate_answer>
+
+<verified_profile>
+${params.masterProfileText}
+</verified_profile>
+
+<job_specification>
+${params.jobSpecText.slice(0, 4000)}
+</job_specification>`;
+
+  return callStructuredAi<MockInterviewEvaluation>({
+    provider: params.provider,
+    modelId: params.modelId,
+    thinkingLevel: params.thinkingLevel,
+    apiKey: params.apiKey,
+    systemPrompt,
+    userPrompt,
+    temperature: 0.4,
+  });
+}
+
+export interface UkSalaryCoachPlan {
+  targetRangeGuidance: string;
+  leveragePoints: string[];
+  totalCompLevers: string[];
+  recruiterScript: string;
+  counterOfferScript: string;
+}
+
+/**
+ * Generates a UK-calibrated salary & total-comp negotiation brief for the target role.
+ */
+export async function generateUkSalaryCoachWithBruce(params: {
+  provider: ModelType;
+  modelId?: string;
+  thinkingLevel?: ThinkingLevel;
+  apiKey: string;
+  company: string;
+  roleTitle: string;
+  location: string;
+  listedSalary?: string;
+  targetFloor: string;
+  masterProfileText: string;
+  jobSpecText: string;
+}): Promise<UkSalaryCoachPlan> {
+  const systemPrompt = `You are Bruce, a UK compensation & career negotiation coach. Prepare a practical UK salary & offer negotiation brief for ${params.roleTitle} at ${params.company} (${params.location || "UK"}).
+Use UK market norms (GBP £, pension match, holiday allowance, hybrid flexibility, bonus/equity) and UK English spelling.
+Return JSON:
+{
+  "targetRangeGuidance": "Brief 2-3 sentence assessment of positioning given listed salary and candidate target floor",
+  "leveragePoints": ["2-3 verified strengths from their profile that justify upper-band comp"],
+  "totalCompLevers": ["3-4 UK non-base levers to negotiate if base is capped (pension, sign-on, WFH/hybrid, L&D, review cycle)"],
+  "recruiterScript": "Polite, confident UK script for handling 'What are your salary expectations?' early in the process",
+  "counterOfferScript": "Polite, collaborative email template for negotiating once an initial offer arrives"
+}`;
+
+  const userPrompt = JSON.stringify({
+    company: params.company,
+    roleTitle: params.roleTitle,
+    location: params.location,
+    listedSalary: params.listedSalary || "Not listed",
+    candidateTargetFloor: params.targetFloor || "Not specified",
+    profileSummary: params.masterProfileText.slice(0, 3500),
+    jobSpecExcerpt: params.jobSpecText.slice(0, 3500),
+  });
+
+  return callStructuredAi<UkSalaryCoachPlan>({
+    provider: params.provider,
+    modelId: params.modelId,
+    thinkingLevel: params.thinkingLevel,
+    apiKey: params.apiKey,
+    systemPrompt,
+    userPrompt,
+    temperature: 0.4,
+  });
+}
+
 /**
  * Opens an ATS-friendly monochrome print sheet so the user can Save as PDF
  * cleanly without any site chrome or neon background colors.
