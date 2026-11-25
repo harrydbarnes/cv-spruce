@@ -34,11 +34,28 @@ import { useCareerProfile } from "@/hooks/use-career-profile";
 import { useJobDiscovery } from "@/hooks/use-job-discovery";
 import { useApplications } from "@/hooks/use-applications";
 import { usePersistentApiKey } from "@/hooks/use-persistent-api-key";
-import { JOB_SOURCE_LABELS, type DiscoveredJob, type JobSource } from "@/lib/job-feeds";
+import {
+  JOB_SOURCE_LABELS,
+  ADZUNA_APP_ID_KEY,
+  ADZUNA_APP_KEY_KEY,
+  type DiscoveredJob,
+  type JobSource,
+} from "@/lib/job-feeds";
 import { computeScanCadence } from "@/lib/scan-cadence";
 import type { ModelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import Footer from "@/components/Footer";
+
+const UK_QUICK_PRESETS: Array<{
+  label: string;
+  source: JobSource;
+  slug?: string;
+  query: string;
+}> = [
+  { label: "Monzo (UK)", source: "greenhouse", slug: "monzo", query: "" },
+  { label: "Deliveroo (UK)", source: "greenhouse", slug: "deliveroo", query: "" },
+  { label: "incident.io (Ashby UK)", source: "ashby", slug: "incident.io", query: "" },
+];
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
@@ -75,7 +92,15 @@ export default function DiscoverPage() {
   const [newSource, setNewSource] = useState<JobSource>("remotive");
   const [newQuery, setNewQuery] = useState("");
   const [newSlug, setNewSlug] = useState("");
+  const [newLocation, setNewLocation] = useState("London");
   const [newRemoteOnly, setNewRemoteOnly] = useState(false);
+
+  const [adzunaAppId, setAdzunaAppId] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem(ADZUNA_APP_ID_KEY) || "" : ""
+  );
+  const [adzunaAppKey, setAdzunaAppKey] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem(ADZUNA_APP_KEY_KEY) || "" : ""
+  );
 
   const [filterText, setFilterText] = useState("");
   const [onlyRemote, setOnlyRemote] = useState(false);
@@ -87,14 +112,24 @@ export default function DiscoverPage() {
   const claude = usePersistentApiKey("claude");
   const activeKey = { gemini, openai, claude }[scoreModel].apiKey;
 
-  const needsSlug = newSource === "greenhouse" || newSource === "lever";
+  const needsSlug = newSource === "greenhouse" || newSource === "lever" || newSource === "ashby";
+  const isAdzuna = newSource === "adzuna";
+
+  const saveAdzunaKeys = () => {
+    localStorage.setItem(ADZUNA_APP_ID_KEY, adzunaAppId.trim());
+    localStorage.setItem(ADZUNA_APP_KEY_KEY, adzunaAppKey.trim());
+    toast({
+      title: "Adzuna UK Keys Saved",
+      description: "Stored locally in your browser for UK job board searches.",
+    });
+  };
 
   const handleAddWatcher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (needsSlug && !newSlug.trim()) {
       toast({
         title: "Company slug required",
-        description: "Enter a company board slug (e.g. stripe, linear, monzo).",
+        description: "Enter a company board slug (e.g. monzo, deliveroo, incident.io).",
         variant: "destructive",
       });
       return;
@@ -102,13 +137,18 @@ export default function DiscoverPage() {
 
     const label =
       newName.trim() ||
-      (needsSlug ? `${newSlug.trim()} (${newSource})` : `${newQuery.trim() || "All"} on ${newSource}`);
+      (needsSlug
+        ? `${newSlug.trim()} (${newSource})`
+        : isAdzuna
+          ? `${newQuery.trim() || "UK Roles"} • ${newLocation.trim() || "UK"} (Adzuna)`
+          : `${newQuery.trim() || "All"} on ${newSource}`);
 
     await addWatcher({
       name: label,
       source: newSource,
       query: newQuery.trim(),
-      companySlug: needsSlug ? newSlug.trim().toLowerCase() : undefined,
+      companySlug: needsSlug ? newSlug.trim() : undefined,
+      location: isAdzuna ? newLocation.trim() : undefined,
       remoteOnly: newRemoteOnly,
       enabled: true,
     });
@@ -253,10 +293,41 @@ export default function DiscoverPage() {
                 Job Watchers ({watchers.length})
               </CardTitle>
               <CardDescription className="text-xs">
-                Watch open boards or plug in any Greenhouse/Lever company slug (e.g. <code>stripe</code>, <code>monzo</code>, <code>vercel</code>).
+                Watch open boards, UK Adzuna listings, or Greenhouse / Lever / Ashby company slugs (e.g. <code>monzo</code>, <code>deliveroo</code>, <code>incident.io</code>).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* UK Quick-Add Presets */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Quick-Add UK Company Boards
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {UK_QUICK_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px]"
+                      onClick={() => {
+                        void addWatcher({
+                          name: preset.label,
+                          source: preset.source,
+                          companySlug: preset.slug,
+                          query: preset.query,
+                          remoteOnly: false,
+                          enabled: true,
+                        });
+                        toast({ title: "Watcher Added", description: `Added ${preset.label}.` });
+                      }}
+                    >
+                      + {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <form onSubmit={handleAddWatcher} className="space-y-3 rounded-xl border border-border bg-background/60 p-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Source</Label>
@@ -265,11 +336,13 @@ export default function DiscoverPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="adzuna">{JOB_SOURCE_LABELS.adzuna}</SelectItem>
+                      <SelectItem value="ashby">{JOB_SOURCE_LABELS.ashby}</SelectItem>
+                      <SelectItem value="greenhouse">{JOB_SOURCE_LABELS.greenhouse}</SelectItem>
+                      <SelectItem value="lever">{JOB_SOURCE_LABELS.lever}</SelectItem>
                       <SelectItem value="remotive">{JOB_SOURCE_LABELS.remotive}</SelectItem>
                       <SelectItem value="arbeitnow">{JOB_SOURCE_LABELS.arbeitnow}</SelectItem>
                       <SelectItem value="hn_yc">{JOB_SOURCE_LABELS.hn_yc}</SelectItem>
-                      <SelectItem value="greenhouse">{JOB_SOURCE_LABELS.greenhouse}</SelectItem>
-                      <SelectItem value="lever">{JOB_SOURCE_LABELS.lever}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -278,11 +351,52 @@ export default function DiscoverPage() {
                   <div className="space-y-1">
                     <Label className="text-xs">Company Board Slug</Label>
                     <Input
-                      placeholder="e.g. stripe, airbnb, datadog"
+                      placeholder="e.g. monzo, deliveroo, incident.io"
                       value={newSlug}
                       onChange={(e) => setNewSlug(e.target.value)}
                       className="bg-background"
                     />
+                  </div>
+                )}
+
+                {isAdzuna && (
+                  <div className="space-y-2 rounded-lg border border-border bg-card/70 p-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-xs">UK Location (e.g. London, Manchester, UK)</Label>
+                      <Input
+                        placeholder="London"
+                        value={newLocation}
+                        onChange={(e) => setNewLocation(e.target.value)}
+                        className="bg-background h-8 text-xs"
+                      />
+                    </div>
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      Adzuna UK Free API Keys (stored locally)
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Input
+                        placeholder="App ID"
+                        value={adzunaAppId}
+                        onChange={(e) => setAdzunaAppId(e.target.value)}
+                        className="bg-background h-8 text-xs"
+                      />
+                      <Input
+                        type="password"
+                        placeholder="App Key"
+                        value={adzunaAppKey}
+                        onChange={(e) => setAdzunaAppKey(e.target.value)}
+                        className="bg-background h-8 text-xs"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={saveAdzunaKeys}
+                      className="h-7 w-full text-xs"
+                    >
+                      Save Adzuna UK Keys
+                    </Button>
                   </div>
                 )}
 
@@ -299,7 +413,7 @@ export default function DiscoverPage() {
                 <div className="space-y-1">
                   <Label className="text-xs">Watcher Label (optional)</Label>
                   <Input
-                    placeholder="e.g. Senior React Roles"
+                    placeholder="e.g. Senior React Roles UK"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                     className="bg-background"

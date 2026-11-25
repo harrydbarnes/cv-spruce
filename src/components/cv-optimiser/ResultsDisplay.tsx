@@ -1,9 +1,20 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { FileText, Mail, MessageSquare, TrendingUp, Target, ExternalLink, Kanban, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import OutputCard from "./OutputCard";
 import type { GeminiResponse } from "@/lib/gemini-api";
-import { printCleanDocument } from "@/lib/application-utils";
+import {
+  printCleanDocument,
+  PDF_THEME_OPTIONS,
+  type PdfTheme,
+} from "@/lib/application-utils";
 
 interface ResultsDisplayProps {
   data: GeminiResponse;
@@ -19,6 +30,8 @@ const ResultsDisplay = ({
   onSaveToBoard,
   savedToBoard,
 }: ResultsDisplayProps) => {
+  const [pdfTheme, setPdfTheme] = useState<PdfTheme>("classic");
+
   // Format interview Q&As as readable text for copy
   const qnaCopyText = data.interview_qna
     ?.map((item, i) => `Q${i + 1}: ${item.question}\nA${i + 1}: ${item.answer}`)
@@ -38,11 +51,23 @@ const ResultsDisplay = ({
             <h2 className="text-xl font-semibold">Match Analysis</h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Select value={pdfTheme} onValueChange={(v) => setPdfTheme(v as PdfTheme)}>
+              <SelectTrigger className="h-8 w-36 bg-background text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PDF_THEME_OPTIONS.map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => printCleanDocument("Tailored CV", data.tailored_cv)}
+              onClick={() => printCleanDocument("Tailored CV", data.tailored_cv, pdfTheme)}
               className="gap-1.5 text-xs"
             >
               <Printer className="h-3.5 w-3.5" />

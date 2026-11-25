@@ -16,6 +16,7 @@ import {
   Calendar,
   Copy,
   Check,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,10 +41,13 @@ import { callOpenAiApi } from "@/lib/openai-api";
 import { callClaudeApi } from "@/lib/claude-api";
 import {
   APPLICATION_STATUS_META,
+  PDF_THEME_OPTIONS,
   refineDocumentWithBruce,
+  draftApplicationAnswerWithBruce,
   downloadMarkdownFile,
   printCleanDocument,
   type ApplicationStatus,
+  type PdfTheme,
 } from "@/lib/application-utils";
 import type { ModelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -71,10 +75,19 @@ export default function ApplicationDetailPage() {
   const activeKey = { gemini, openai, claude }[model].apiKey;
 
   const [generating, setGenerating] = useState(false);
+  const [pdfTheme, setPdfTheme] = useState<PdfTheme>("classic");
   const [chatTarget, setChatTarget] = useState<"cv" | "cover_letter">("cv");
   const [chatInput, setChatInput] = useState("");
   const [refining, setRefining] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Custom ATS Form Question Drafter state
+  const [formQuestion, setFormQuestion] = useState("");
+  const [formTone, setFormTone] = useState<"concise" | "detailed">("concise");
+  const [draftingAnswer, setDraftingAnswer] = useState(false);
+  const [draftedAnswers, setDraftedAnswers] = useState<
+    Array<{ id: string; question: string; answer: string; keyPointsUsed: string[] }>
+  >([]);
 
   if (!app) {
     return (
@@ -240,6 +253,48 @@ export default function ApplicationDetailPage() {
       });
     } finally {
       setRefining(false);
+    }
+  };
+
+  const handleDraftFormAnswer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formQuestion.trim()) return;
+    if (!activeKey.trim()) {
+      toast({
+        title: "API Key Required",
+        description: "Save a Gemini, Claude, or OpenAI key on Quick Tailor first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDraftingAnswer(true);
+    try {
+      const q = formQuestion.trim();
+      const res = await draftApplicationAnswerWithBruce({
+        provider: model,
+        apiKey: activeKey,
+        question: q,
+        company: app.company,
+        roleTitle: app.roleTitle,
+        masterProfileText: masterCvText || app.tailoredCv,
+        careerStory: profile.careerStory,
+        jobSpecText: app.jobSpecText,
+        tone: formTone,
+      });
+      setDraftedAnswers((prev) => [
+        { id: `ans-${Date.now()}`, question: q, answer: res.answer, keyPointsUsed: res.keyPointsUsed ?? [] },
+        ...prev,
+      ]);
+      setFormQuestion("");
+    } catch (err) {
+      toast({
+        title: "Draft failed",
+        description: err instanceof Error ? err.message : "Could not draft answer.",
+        variant: "destructive",
+      });
+    } finally {
+      setDraftingAnswer(false);
     }
   };
 
@@ -420,23 +475,31 @@ export default function ApplicationDetailPage() {
             </Card>
           </div>
 
-          {/* Right column: Bespoke Documents + Bruce Refinement Chat */}
+          {/* Right column: Bespoke Documents + Form Q&A + Bruce Refinement Chat */}
           <div className="space-y-4 lg:col-span-8">
             <Tabs defaultValue="cv" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 bg-card border border-border">
-                <TabsTrigger value="cv" className="gap-1.5 text-xs">
+              <TabsList className="grid w-full grid-cols-5 bg-card border border-border">
+                <TabsTrigger value="cv" className="gap-1 text-xs">
                   <FileText className="h-3.5 w-3.5" />
-                  Bespoke CV
+                  <span className="hidden sm:inline">Bespoke CV</span>
+                  <span className="sm:hidden">CV</span>
                 </TabsTrigger>
-                <TabsTrigger value="cover" className="gap-1.5 text-xs">
+                <TabsTrigger value="cover" className="gap-1 text-xs">
                   <Mail className="h-3.5 w-3.5" />
-                  Cover Letter
+                  <span className="hidden sm:inline">Cover Letter</span>
+                  <span className="sm:hidden">Letter</span>
                 </TabsTrigger>
-                <TabsTrigger value="qna" className="gap-1.5 text-xs">
+                <TabsTrigger value="form_qna" className="gap-1 text-xs">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Form Q&amp;A</span>
+                  <span className="sm:hidden">Forms</span>
+                </TabsTrigger>
+                <TabsTrigger value="qna" className="gap-1 text-xs">
                   <MessageSquare className="h-3.5 w-3.5" />
-                  Interview Q&amp;A
+                  <span className="hidden sm:inline">Interview</span>
+                  <span className="sm:hidden">Prep</span>
                 </TabsTrigger>
-                <TabsTrigger value="chat" className="gap-1.5 text-xs">
+                <TabsTrigger value="chat" className="gap-1 text-xs">
                   <Sparkles className="h-3.5 w-3.5" />
                   Refine ({app.cvVersions.length})
                 </TabsTrigger>
@@ -449,10 +512,22 @@ export default function ApplicationDetailPage() {
                     <div>
                       <CardTitle className="text-lg">Tailored CV (Markdown)</CardTitle>
                       <CardDescription className="text-xs">
-                        Edit directly or export as a clean ATS-friendly PDF.
+                        Edit directly or choose an ATS theme to export as PDF.
                       </CardDescription>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Select value={pdfTheme} onValueChange={(v) => setPdfTheme(v as PdfTheme)}>
+                        <SelectTrigger className="h-8 w-36 bg-background text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PDF_THEME_OPTIONS.map((t) => (
+                            <SelectItem key={t.id} value={t.id} className="text-xs">
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         variant="outline"
@@ -479,7 +554,11 @@ export default function ApplicationDetailPage() {
                         size="sm"
                         disabled={!app.tailoredCv}
                         onClick={() =>
-                          printCleanDocument(`${app.company} — ${app.roleTitle} CV`, app.tailoredCv)
+                          printCleanDocument(
+                            `${app.company} — ${app.roleTitle} CV`,
+                            app.tailoredCv,
+                            pdfTheme
+                          )
                         }
                         className="gap-1.5 text-xs"
                       >
@@ -505,7 +584,19 @@ export default function ApplicationDetailPage() {
                 <Card className="border-border bg-card">
                   <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
                     <CardTitle className="text-lg">Tailored Cover Letter</CardTitle>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Select value={pdfTheme} onValueChange={(v) => setPdfTheme(v as PdfTheme)}>
+                        <SelectTrigger className="h-8 w-36 bg-background text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PDF_THEME_OPTIONS.map((t) => (
+                            <SelectItem key={t.id} value={t.id} className="text-xs">
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         variant="outline"
@@ -522,7 +613,8 @@ export default function ApplicationDetailPage() {
                         onClick={() =>
                           printCleanDocument(
                             `${app.company} — ${app.roleTitle} Cover Letter`,
-                            app.coverLetter
+                            app.coverLetter,
+                            pdfTheme
                           )
                         }
                         className="gap-1.5 text-xs"
@@ -540,6 +632,99 @@ export default function ApplicationDetailPage() {
                       placeholder="Cover letter will appear here after generating..."
                       className="bg-background text-sm leading-relaxed"
                     />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Custom ATS Application Form Question Drafter Tab */}
+              <TabsContent value="form_qna" className="mt-4 space-y-4">
+                <Card className="border-border bg-card">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <HelpCircle className="h-5 w-5 text-primary" />
+                      Application Form Question Drafter
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Paste any custom screening question from Greenhouse, Lever, Ashby, or Workday (e.g. &ldquo;Why do you want to work at {app.company}?&rdquo;). Bruce drafts a fact-grounded answer from your Master Profile.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <form onSubmit={handleDraftFormAnswer} className="space-y-3">
+                      <Textarea
+                        rows={3}
+                        placeholder={`e.g. "Why are you excited about ${app.company}?" or "Tell us about a difficult engineering trade-off you made."`}
+                        value={formQuestion}
+                        onChange={(e) => setFormQuestion(e.target.value)}
+                        className="bg-background text-sm"
+                        disabled={draftingAnswer}
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Select
+                          value={formTone}
+                          onValueChange={(v) => setFormTone(v as "concise" | "detailed")}
+                        >
+                          <SelectTrigger className="w-44 bg-background text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="concise">Concise (1 paragraph)</SelectItem>
+                            <SelectItem value="detailed">Detailed (2-3 paragraphs)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="submit"
+                          disabled={draftingAnswer || !formQuestion.trim()}
+                          className="gap-1.5"
+                        >
+                          {draftingAnswer ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                          {draftingAnswer ? "Drafting..." : "Draft Answer"}
+                        </Button>
+                      </div>
+                    </form>
+
+                    {draftedAnswers.length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        {draftedAnswers.map((item) => (
+                          <div
+                            key={item.id}
+                            className="space-y-2 rounded-xl border border-border bg-background/70 p-4"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs font-bold text-foreground">{item.question}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 shrink-0 gap-1 text-xs"
+                                onClick={() => void handleCopy(item.id, item.answer)}
+                              >
+                                {copiedKey === item.id ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                                Copy
+                              </Button>
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-card-foreground/90">
+                              {item.answer}
+                            </p>
+                            {item.keyPointsUsed.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-1">
+                                {item.keyPointsUsed.map((pt, i) => (
+                                  <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                                    ✓ {pt}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

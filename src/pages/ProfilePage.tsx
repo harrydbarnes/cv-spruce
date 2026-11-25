@@ -13,7 +13,10 @@ import {
   GraduationCap,
   Code2,
   Brain,
+  Download,
+  HardDrive,
 } from "lucide-react";
+import { downloadWorkspaceBackup, restoreWorkspaceBackup } from "@/lib/workspace-backup";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -909,6 +912,70 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Workspace JSON Backup & Restore (Guest Mode Safety Net) */}
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <HardDrive className="h-5 w-5 text-primary" />
+              Workspace Backup &amp; Portability
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Export your entire local workspace (Master Profile, job watchers, discovered roles, and Kanban board) as a JSON file, or restore a previous backup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                const file = downloadWorkspaceBackup();
+                toast({
+                  title: "Backup Exported",
+                  description: `Saved ${file} to your downloads folder.`,
+                });
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Export Workspace JSON
+            </Button>
+
+            <label>
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const { restoredSections } = restoreWorkspaceBackup(text);
+                    toast({
+                      title: "Workspace Restored",
+                      description: `Imported: ${restoredSections.join(", ")}. Reloading...`,
+                    });
+                    setTimeout(() => window.location.reload(), 600);
+                  } catch (err) {
+                    toast({
+                      title: "Import Failed",
+                      description: err instanceof Error ? err.message : "Invalid backup file.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" className="gap-2" asChild>
+                <span>
+                  <Upload className="h-4 w-4" />
+                  Import Workspace JSON
+                </span>
+              </Button>
+            </label>
           </CardContent>
         </Card>
       </main>

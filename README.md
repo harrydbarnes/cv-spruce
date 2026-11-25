@@ -66,10 +66,16 @@ bun run build       # Production bundle
 
 ## Tech Stack 🛠️
 
-* **Vite 6** + **React 18** + **TypeScript**
+* **Vite 6** + **React 18** + **TypeScript** + **VitePWA** (installable desktop/mobile PWA with route code-splitting)
 * **Tailwind CSS** + **shadcn/ui** + **Framer Motion**
-* **Supabase** (Optional Auth, Postgres RLS, Edge Functions)
+* **Supabase** (Optional Auth, Postgres RLS, Edge Functions with adaptive inactivity scan decay & 30-day job pruning)
 * **PDF.js** & **Mammoth.js** for client-side document parsing
 * **GitHub Actions**: Automated CI (typecheck, lint, test, build), GitHub Pages deploy, and Dependabot
+
+## Parked / Future Roadmap 🗺️
+
+* **High-Match Email / Webhook Digests** *(Parked for now)*: Optional Resend email or Discord/Slack notification triggered by `job-scanner` only when a newly discovered role scores ≥ 80%, paired with adaptive scan decay.
+* **Lightweight Browser Extension**: 1-click "Send current job tab to CV Spruce" + quick copy of drafted Form Q&A answers.
+* **Reed.co.uk API Integration**: Additional UK-native job board alongside Adzuna UK (`gb`), Ashby, Greenhouse, and Lever.
 
 Happy sprucing! 🌲✨

@@ -8,6 +8,7 @@ export type JobSource =
   | "hn_yc"
   | "greenhouse"
   | "lever"
+  | "ashby"
   | "adzuna"
   | "jsearch";
 
@@ -49,11 +50,12 @@ export interface DiscoveredJob {
 
 export const JOB_SOURCE_LABELS: Record<JobSource, string> = {
   remotive: "Remotive (Remote)",
-  arbeitnow: "Arbeitnow (EU / Remote)",
+  arbeitnow: "Arbeitnow (EU / UK Remote)",
   hn_yc: "HN / YC Who is Hiring",
   greenhouse: "Greenhouse Company Board",
   lever: "Lever Company Board",
-  adzuna: "Adzuna (BYOK)",
+  ashby: "Ashby Company Board (UK/Global Startups)",
+  adzuna: "Adzuna UK (GBP / Free API Key)",
   jsearch: "JSearch / LinkedIn & Indeed (BYOK)",
 };
 
@@ -295,6 +297,123 @@ export async function fetchLeverJobs(
     });
 }
 
+export async function fetchAshbyJobs(
+  companySlug: string,
+  query: string,
+  limit = 25
+): Promise<DiscoveredJob[]> {
+  const slug = companySlug.trim();
+  if (!slug) throw new Error("Ashby watcher requires a company board slug (e.g. 'incident.io', 'synthesia').");
+
+  const res = await fetch(
+    `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}`
+  );
+  if (!res.ok) throw new Error(`Ashby board "${slug}" error (${res.status})`);
+  const data = await res.json();
+  const list = Array.isArray(data.jobs) ? data.jobs : [];
+  const now = new Date().toISOString();
+
+  return list
+    .filter((item: Record<string, unknown>) =>
+      matchesQuery(
+        `${item.title ?? ""} ${item.location ?? ""} ${item.department ?? ""} ${
+          item.descriptionPlain ?? item.descriptionHtml ?? ""
+        }`,
+        query
+      )
+    )
+    .slice(0, limit)
+    .map((item: Record<string, unknown>) => {
+      const loc = String(item.location ?? "See posting");
+      const workplace = String(item.workplaceType ?? "");
+      return {
+        id: `ashby-${slug}-${String(item.id)}`,
+        externalId: `${slug}-${String(item.id)}`,
+        source: "ashby" as const,
+        title: String(item.title ?? "Untitled Role"),
+        company: slug.charAt(0).toUpperCase() + slug.slice(1),
+        location: loc,
+        remote: Boolean(item.isRemote) || /remote/i.test(loc) || /remote/i.test(workplace),
+        url: String(item.jobUrl ?? item.applyUrl ?? ""),
+        description: String(item.descriptionPlain ?? stripHtml(String(item.descriptionHtml ?? ""))),
+        tags: [item.department, item.employmentType].filter(Boolean).map(String),
+        matchReasons: [],
+        skillGaps: [],
+        postedAt: item.publishedAt ? String(item.publishedAt) : undefined,
+        discoveredAt: now,
+      };
+    });
+}
+
+export const ADZUNA_APP_ID_KEY = "cv-spruce-adzuna-app-id";
+export const ADZUNA_APP_KEY_KEY = "cv-spruce-adzuna-app-key";
+
+export async function fetchAdzunaUkJobs(
+  query: string,
+  location = "",
+  limit = 20
+): Promise<DiscoveredJob[]> {
+  const appId = typeof window !== "undefined" ? localStorage.getItem(ADZUNA_APP_ID_KEY) || "" : "";
+  const appKey = typeof window !== "undefined" ? localStorage.getItem(ADZUNA_APP_KEY_KEY) || "" : "";
+
+  if (!appId.trim() || !appKey.trim()) {
+    throw new Error(
+      "Adzuna UK requires a free App ID & App Key — add them under Discover → UK Job Board Keys."
+    );
+  }
+
+  const params = new URLSearchParams({
+    app_id: appId.trim(),
+    app_key: appKey.trim(),
+    results_per_page: String(limit),
+    what: query.trim() || "software engineer",
+  });
+  if (location.trim()) {
+    params.set("where", location.trim());
+  }
+
+  const res = await fetch(`https://api.adzuna.com/v1/api/jobs/gb/search/1?${params.toString()}`);
+  if (!res.ok) throw new Error(`Adzuna UK API error (${res.status})`);
+  const data = await res.json();
+  const list = Array.isArray(data.results) ? data.results : [];
+  const now = new Date().toISOString();
+
+  return list.slice(0, limit).map((item: Record<string, unknown>) => {
+    const companyObj = (item.company as { display_name?: string } | undefined) ?? {};
+    const locObj = (item.location as { display_name?: string } | undefined) ?? {};
+    const minSal = typeof item.salary_min === "number" ? Math.round(item.salary_min) : null;
+    const maxSal = typeof item.salary_max === "number" ? Math.round(item.salary_max) : null;
+    const salary =
+      minSal && maxSal
+        ? `£${minSal.toLocaleString()} – £${maxSal.toLocaleString()}`
+        : minSal
+          ? `From £${minSal.toLocaleString()}`
+          : undefined;
+
+    const title = String(item.title ?? "Untitled Role");
+    const desc = stripHtml(String(item.description ?? ""));
+    const loc = locObj.display_name ?? "United Kingdom";
+
+    return {
+      id: `adzuna-${String(item.id)}`,
+      externalId: String(item.id),
+      source: "adzuna" as const,
+      title,
+      company: companyObj.display_name ?? "UK Employer",
+      location: loc,
+      remote: /\bremote\b/i.test(`${title} ${loc} ${desc}`),
+      salary,
+      url: String(item.redirect_url ?? ""),
+      description: desc,
+      tags: ["Adzuna UK"],
+      matchReasons: [],
+      skillGaps: [],
+      postedAt: item.created ? String(item.created) : undefined,
+      discoveredAt: now,
+    };
+  });
+}
+
 export async function fetchJobsForWatcher(watcher: JobWatcher): Promise<DiscoveredJob[]> {
   let jobs: DiscoveredJob[] = [];
   switch (watcher.source) {
@@ -312,6 +431,12 @@ export async function fetchJobsForWatcher(watcher: JobWatcher): Promise<Discover
       break;
     case "lever":
       jobs = await fetchLeverJobs(watcher.companySlug || "", watcher.query);
+      break;
+    case "ashby":
+      jobs = await fetchAshbyJobs(watcher.companySlug || "", watcher.query);
+      break;
+    case "adzuna":
+      jobs = await fetchAdzunaUkJobs(watcher.query, watcher.location || "");
       break;
     default:
       jobs = [];

@@ -217,11 +217,108 @@ function markdownToPrintHtml(md: string): string {
   return out.join("\n");
 }
 
+export type PdfTheme = "classic" | "modern" | "compact" | "executive";
+
+export const PDF_THEME_OPTIONS: Array<{ id: PdfTheme; label: string; description: string }> = [
+  { id: "classic", label: "Classic ATS", description: "Clean sans-serif, crisp section dividers" },
+  { id: "modern", label: "Modern Minimal", description: "Generous spacing, subtle accent bar" },
+  { id: "compact", label: "Technical Compact", description: "Dense 1-page layout for engineers" },
+  { id: "executive", label: "Executive Serif", description: "Editorial Georgia/serif typography" },
+];
+
+const PDF_THEME_CSS: Record<PdfTheme, string> = {
+  classic: `
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #111; font-size: 10.5pt; line-height: 1.45; }
+    h1 { font-size: 18pt; margin: 0 0 4px; letter-spacing: -0.01em; }
+    h2 { font-size: 11.5pt; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #d4d4d4; padding-bottom: 3px; margin: 16px 0 8px; }
+    h3 { font-size: 10.5pt; margin: 10px 0 2px; }
+  `,
+  modern: `
+    body { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #18181b; font-size: 10pt; line-height: 1.55; }
+    h1 { font-size: 20pt; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em; border-left: 4px solid #111827; padding-left: 10px; }
+    h2 { font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #3f3f46; margin: 18px 0 8px; }
+    h3 { font-size: 10.5pt; font-weight: 600; margin: 10px 0 2px; }
+  `,
+  compact: `
+    @page { margin: 11mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; font-size: 9.5pt; line-height: 1.35; }
+    h1 { font-size: 15.5pt; margin: 0 0 2px; }
+    h2 { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; margin: 11px 0 5px; }
+    h3 { font-size: 9.8pt; margin: 7px 0 1px; }
+    ul { margin: 2px 0 6px; padding-left: 15px; }
+    li { margin-bottom: 2px; }
+  `,
+  executive: `
+    body { font-family: Georgia, "Times New Roman", Times, serif; color: #1c1917; font-size: 10.5pt; line-height: 1.5; }
+    h1 { font-size: 20pt; font-weight: normal; text-align: center; margin: 0 0 6px; letter-spacing: 0.02em; }
+    h2 { font-size: 11pt; font-variant: small-caps; letter-spacing: 0.08em; border-bottom: 1px solid #a8a29e; padding-bottom: 3px; margin: 16px 0 8px; }
+    h3 { font-size: 10.5pt; font-weight: bold; margin: 10px 0 2px; }
+  `,
+};
+
+/**
+ * Drafts a fact-grounded answer to a custom ATS application question
+ * (e.g. "Why do you want to work here?" or "Tell us about a complex problem you solved").
+ */
+export async function draftApplicationAnswerWithBruce(params: {
+  provider: ModelType;
+  apiKey: string;
+  question: string;
+  company: string;
+  roleTitle: string;
+  masterProfileText: string;
+  careerStory: string;
+  jobSpecText: string;
+  tone?: "concise" | "detailed";
+}): Promise<{ answer: string; keyPointsUsed: string[] }> {
+  const lengthHint =
+    params.tone === "detailed"
+      ? "2-3 well-structured paragraphs (approx. 180-250 words)"
+      : "1 concise, high-impact paragraph (approx. 80-130 words)";
+
+  const systemPrompt = `You are Bruce, the CV Spruce career agent. Draft an authentic, human-sounding answer to a job application screening question for ${params.roleTitle} at ${params.company}.
+STRICT FACTUAL GROUNDING: Only cite projects, roles, achievements, and skills explicitly present in <verified_profile> or <career_story>. Never invent experience.
+Length: ${lengthHint}. Use UK English spelling. Avoid cliché AI phrasing.
+Return JSON:
+{
+  "answer": "The ready-to-paste answer text",
+  "keyPointsUsed": ["2-3 short bullets of which verified facts were highlighted"]
+}`;
+
+  const userPrompt = `<question>
+${params.question}
+</question>
+
+<verified_profile>
+${params.masterProfileText}
+</verified_profile>
+
+<career_story>
+${params.careerStory}
+</career_story>
+
+<job_specification>
+${params.jobSpecText.slice(0, 5000)}
+</job_specification>`;
+
+  return callStructuredAi<{ answer: string; keyPointsUsed: string[] }>({
+    provider: params.provider,
+    apiKey: params.apiKey,
+    systemPrompt,
+    userPrompt,
+    temperature: 0.5,
+  });
+}
+
 /**
  * Opens an ATS-friendly monochrome print sheet so the user can Save as PDF
  * cleanly without any site chrome or neon background colors.
  */
-export function printCleanDocument(title: string, markdownContent: string) {
+export function printCleanDocument(
+  title: string,
+  markdownContent: string,
+  theme: PdfTheme = "classic"
+) {
   const win = window.open("", "_blank", "noopener,noreferrer,width=850,height=1000");
   if (!win) return;
 
@@ -236,21 +333,15 @@ export function printCleanDocument(title: string, markdownContent: string) {
   <style>
     @page { margin: 16mm; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #111;
       background: #fff;
-      font-size: 10.5pt;
-      line-height: 1.45;
       max-width: 780px;
       margin: 0 auto;
       padding: 24px;
     }
-    h1 { font-size: 18pt; margin: 0 0 4px; letter-spacing: -0.01em; }
-    h2 { font-size: 11.5pt; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #d4d4d4; padding-bottom: 3px; margin: 16px 0 8px; }
-    h3 { font-size: 10.5pt; margin: 10px 0 2px; }
     p { margin: 4px 0 8px; }
     ul { margin: 4px 0 10px; padding-left: 18px; }
     li { margin-bottom: 3px; }
+    ${PDF_THEME_CSS[theme]}
   </style>
 </head>
 <body>
