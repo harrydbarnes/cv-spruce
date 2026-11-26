@@ -41,7 +41,7 @@ export default defineConfig(() => ({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "favicon-32x32.png"],
+      includeAssets: ["favicon.ico", "favicon.svg", "apple-touch-icon.png", "favicon-32x32.png"],
       manifest: {
         name: "CV Spruce — AI Career Co-Pilot",
         short_name: "CV Spruce",
