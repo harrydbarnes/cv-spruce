@@ -10,10 +10,10 @@ import {
   LogOut,
   Moon,
   Sun,
-  Trees,
   HelpCircle,
   KeyRound,
 } from "lucide-react";
+import { SpruceLogo } from "@/components/layout/SpruceLogo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -82,8 +82,8 @@ export function TopNav() {
             to="/"
             className="flex shrink-0 items-center gap-2 font-bold tracking-tight text-foreground transition-opacity hover:opacity-80"
           >
-            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Trees className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <SpruceLogo className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
             </span>
             <span className="hidden lg:inline text-base">CV Spruce</span>
           </Link>
