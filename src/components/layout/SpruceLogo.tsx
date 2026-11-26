@@ -2,9 +2,9 @@ import { SVGProps } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Custom CV Spruce brand emblem: a tailored CV sheet paired with a crisp
- * two-tier evergreen spruce crest. Designed to stay razor-sharp from 16px
- * favicon/nav sizes up to large hero/PWA badges.
+ * Custom CV Spruce brand emblem: a structured CV sheet paired with a crisp
+ * job briefcase — representing tailoring CVs and landing roles. Designed to
+ * stay razor-sharp from 16px favicon/nav sizes up to PWA icons.
  */
 export function SpruceLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -18,7 +18,7 @@ export function SpruceLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
     >
       {/* CV sheet outline with folded corner */}
       <path
-        d="M12.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"
+        d="M12.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.2"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -40,23 +40,31 @@ export function SpruceLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
       />
       {/* Resume lines */}
       <path
-        d="M7.2 9.8h3.6M7.2 13.3h2.7M7.2 16.8h1.9"
+        d="M7.2 9.8h3.6M7.2 13.3h1.9M7.2 16.8h1.4"
         stroke="currentColor"
         strokeWidth="1.9"
         strokeLinecap="round"
       />
-      {/* Two-tier geometric Spruce tree */}
+      {/* Job briefcase */}
       <path
-        d="M16.4 10.1 12.6 14.5h2l-3.1 4.1h9.8l-3.1-4.1h2l-3.8-4.4Z"
-        fill="currentColor"
+        d="M14.3 13v-1.2a1.2 1.2 0 0 1 1.2-1.2h2.2a1.2 1.2 0 0 1 1.2 1.2V13"
         stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinejoin="round"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <rect
+        x="11.2"
+        y="13"
+        width="10.8"
+        height="7.6"
+        rx="1.8"
+        stroke="currentColor"
+        strokeWidth="1.9"
       />
       <path
-        d="M16.4 18.6V21"
+        d="M11.6 16.4h10"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.5"
         strokeLinecap="round"
       />
     </svg>
