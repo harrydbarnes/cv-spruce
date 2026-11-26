@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   Sparkles,
   Compass,
@@ -50,7 +51,10 @@ export function TopNav() {
   const [keysOpen, setKeysOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
-    return document.documentElement.classList.contains("dark") || localStorage.getItem("cv-spruce-theme") === "dark";
+    return (
+      document.documentElement.classList.contains("dark") ||
+      localStorage.getItem("cv-spruce-theme") === "dark"
+    );
   });
 
   useEffect(() => {
@@ -70,20 +74,22 @@ export function TopNav() {
     <>
       <nav
         aria-label="Primary navigation"
-        className="sticky top-0 z-40 border-b border-border/80 bg-background/85 backdrop-blur-md print:hidden"
+        className="sticky top-0 z-40 w-full overflow-x-hidden border-b border-border/80 bg-background/85 backdrop-blur-md print:hidden"
       >
-        <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
+        <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-1.5 px-2.5 sm:gap-3 sm:px-4">
+          {/* Brand */}
           <Link
             to="/"
-            className="flex items-center gap-2 font-bold tracking-tight text-foreground transition-opacity hover:opacity-80"
+            className="flex shrink-0 items-center gap-2 font-bold tracking-tight text-foreground transition-opacity hover:opacity-80"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Trees className="h-4 w-4" />
+            <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Trees className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </span>
-            <span className="hidden sm:inline text-base">CV Spruce</span>
+            <span className="hidden lg:inline text-base">CV Spruce</span>
           </Link>
 
-          <div className="flex items-center gap-1 rounded-full border border-border bg-card/70 p-1">
+          {/* Animated Mode Tabs */}
+          <div className="flex min-w-0 items-center gap-0.5 rounded-full border border-border bg-card/70 p-0.5 sm:gap-1 sm:p-1 shadow-sm">
             {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
               const active =
                 to === "/"
@@ -94,30 +100,46 @@ export function TopNav() {
                 <Link
                   key={to}
                   to={to}
+                  aria-label={label}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all",
+                    "relative inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-3.5",
                     active
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-foreground/80 hover:bg-background/60 hover:text-foreground"
+                      ? "text-primary-foreground"
+                      : "text-foreground/80 hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="hidden md:inline">{label}</span>
+                  {active && (
+                    <motion.div
+                      layoutId="activeNavTab"
+                      className="absolute inset-0 rounded-full bg-primary shadow-sm"
+                      transition={{
+                        type: "spring",
+                        stiffness: 380,
+                        damping: 30,
+                        mass: 0.8,
+                      }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden md:inline whitespace-nowrap">{label}</span>
+                  </span>
                 </Link>
               );
             })}
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
+          {/* Right Utilities */}
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setKeysOpen(true)}
               aria-label="Manage AI API keys"
               title="Manage AI API keys"
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+              className="h-7 w-7 sm:h-9 sm:w-9 rounded-full"
             >
-              <KeyRound className="h-4 w-4" />
+              <KeyRound className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
@@ -126,9 +148,9 @@ export function TopNav() {
               onClick={() => setHelpOpen(true)}
               aria-label="How CV Spruce works"
               title="How CV Spruce works"
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+              className="h-7 w-7 sm:h-9 sm:w-9 rounded-full"
             >
-              <HelpCircle className="h-4 w-4" />
+              <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
 
             <Button
@@ -136,17 +158,25 @@ export function TopNav() {
               size="icon"
               onClick={() => setIsDark((prev) => !prev)}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+              className="h-7 w-7 sm:h-9 sm:w-9 rounded-full"
             >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDark ? (
+                <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              )}
             </Button>
 
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2 rounded-full border-primary/40">
-                    <UserCircle2 className="h-4 w-4 text-primary" />
-                    <span className="hidden max-w-[120px] truncate sm:inline">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 sm:h-8 gap-1.5 rounded-full border-primary/40 px-2 sm:px-3"
+                  >
+                    <UserCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                    <span className="hidden max-w-[110px] truncate sm:inline text-xs">
                       {user.user_metadata?.full_name || user.email?.split("@")[0]}
                     </span>
                   </Button>
@@ -172,11 +202,11 @@ export function TopNav() {
                 variant="default"
                 size="sm"
                 onClick={() => setAuthOpen(true)}
-                className="shrink-0 gap-1.5 rounded-full px-3"
+                aria-label={isSupabaseConfigured ? "Sign In" : "Sync or Account"}
+                className="h-7 sm:h-8 shrink-0 gap-1.5 rounded-full px-2 sm:px-3 text-xs"
               >
                 <LogIn className="h-3.5 w-3.5" />
-                <span className="sm:hidden">{isSupabaseConfigured ? "Sign In" : "Sync"}</span>
-                <span className="hidden sm:inline">
+                <span className="hidden sm:inline whitespace-nowrap">
                   {isSupabaseConfigured ? "Sign In" : "Sync / Account"}
                 </span>
               </Button>
