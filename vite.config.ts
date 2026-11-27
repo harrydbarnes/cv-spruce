@@ -46,7 +46,7 @@ export default defineConfig(() => ({
         name: "CV Spruce — AI Career Co-Pilot",
         short_name: "CV Spruce",
         description: "Discover roles, tailor fact-grounded CVs & cover letters, and monitor applications.",
-        theme_color: "#212900",
+        theme_color: "#CCFF00",
         background_color: "#CCFF00",
         display: "standalone",
         scope: "/cv-spruce/",

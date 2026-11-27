@@ -304,7 +304,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header selectedModel={selectedModel} selectedModelId={selectedModelId} />
 
-      <main className="container mx-auto max-w-3xl px-4 pb-20">
+      <main className="container mx-auto max-w-3xl px-4 pb-20 lg:max-w-5xl">
         {/* Input section */}
         <motion.section
           className="space-y-6 rounded-2xl border border-border bg-card p-6 md:p-8 shadow-sm"
@@ -330,50 +330,52 @@ const Index = () => {
             provider={selectedModel}
           />
 
-          <div className="space-y-2">
-            {masterProfileCv.trim().length > 0 && (
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs"
-                  onClick={() => {
-                    setCvText(masterProfileCv);
-                    setCurrentFileName("Master Career Profile");
-                    toast({
-                      title: "Loaded Master Profile",
-                      description: "Using your verified career profile facts for tailoring.",
-                    });
-                  }}
-                >
-                  <UserCircle2 className="h-3.5 w-3.5 text-primary" />
-                  Use Master Profile
-                </Button>
-              </div>
-            )}
-            <FileUpload
-              label="Upload Your CV"
-              description="Upload your current CV to be optimised for the target role."
-              onTextExtracted={handleCvExtracted}
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+            <div className="min-w-0 space-y-2">
+              {masterProfileCv.trim().length > 0 && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => {
+                      setCvText(masterProfileCv);
+                      setCurrentFileName("Master Career Profile");
+                      toast({
+                        title: "Loaded Master Profile",
+                        description: "Using your verified career profile facts for tailoring.",
+                      });
+                    }}
+                  >
+                    <UserCircle2 className="h-3.5 w-3.5 text-primary" />
+                    Use Master Profile
+                  </Button>
+                </div>
+              )}
+              <FileUpload
+                label="Upload Your CV"
+                description="Upload your current CV to be optimised for the target role."
+                onTextExtracted={handleCvExtracted}
+                onError={handleError}
+                saveCV={saveCV}
+                onSaveCVChange={setSaveCV}
+                savedCVs={savedCVs}
+                onSelectCV={handleSelectCV}
+                onDeleteCV={handleDeleteCV}
+                fileName={currentFileName}
+                selectedModel={selectedModel}
+              />
+            </div>
+
+            <JobSpecInput
+              value={jobSpecText}
+              onChange={setJobSpecText}
               onError={handleError}
-              saveCV={saveCV}
-              onSaveCVChange={setSaveCV}
-              savedCVs={savedCVs}
-              onSelectCV={handleSelectCV}
-              onDeleteCV={handleDeleteCV}
-              fileName={currentFileName}
-              selectedModel={selectedModel}
+              rememberJobSpec={rememberJobSpec}
+              onRememberChange={setRememberJobSpec}
             />
           </div>
-
-          <JobSpecInput
-            value={jobSpecText}
-            onChange={setJobSpecText}
-            onError={handleError}
-            rememberJobSpec={rememberJobSpec}
-            onRememberChange={setRememberJobSpec}
-          />
 
           <TailorSection
             keywords={keywords}

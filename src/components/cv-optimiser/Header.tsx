@@ -24,7 +24,7 @@ const Header = ({ selectedModel = "gemini", selectedModelId }: HeaderProps) => {
     : info.label;
 
   return (
-    <header className="relative overflow-hidden py-12 md:py-20">
+    <header className="relative overflow-hidden py-8 md:py-10 xl:py-16">
       {/* Background glow effect */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-primary/10 blur-[120px]" />
@@ -45,7 +45,7 @@ const Header = ({ selectedModel = "gemini", selectedModelId }: HeaderProps) => {
         </motion.div>
 
         <motion.h1
-          className="mb-4 text-4xl font-bold tracking-tight md:text-6xl lg:text-7xl"
+          className="mb-2 text-4xl font-bold tracking-tight md:text-5xl xl:text-6xl"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
@@ -60,7 +60,7 @@ const Header = ({ selectedModel = "gemini", selectedModelId }: HeaderProps) => {
           transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
         >
           <p>Meet Bruce, the CV Spruce agent.</p>
-          <p className="mt-4 text-base md:text-lg">
+          <p className="mt-2 text-base md:text-lg">
             Choose <strong>Gemini</strong>, <strong>Claude</strong>, or <strong>ChatGPT</strong> to receive a tailored CV, cover letter,
             interview preparation, and industry insights, all generated in seconds.
           </p>
