@@ -21,6 +21,7 @@ import TailorSection from "@/components/cv-optimiser/TailorSection";
 import GenerateButton from "@/components/cv-optimiser/GenerateButton";
 import Footer from "@/components/Footer";
 import ModelSelector from "@/components/cv-optimiser/ModelSelector";
+import BatchTailor from "@/components/cv-optimiser/BatchTailor";
 import {
   callGeminiApi,
   type TailorStyle,
@@ -111,6 +112,7 @@ const Index = () => {
   const [coverLetterStyle, setCoverLetterStyle] = useState<CoverLetterStyle>("Middle");
   const [apiWorkload, setApiWorkload] = useState<ApiWorkload>("Normal");
 
+  const [batchMode, setBatchMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AiResponse | null>(null);
   const [savedToBoard, setSavedToBoard] = useState(false);
@@ -330,7 +332,12 @@ const Index = () => {
             provider={selectedModel}
           />
 
-          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="flex flex-wrap gap-2" aria-label="Tailoring mode">
+            <Button type="button" variant={!batchMode ? "default" : "outline"} onClick={() => setBatchMode(false)}>One job</Button>
+            <Button type="button" variant={batchMode ? "default" : "outline"} onClick={() => setBatchMode(true)}>Multiple jobs</Button>
+          </div>
+
+          <div className={batchMode ? "grid gap-6" : "grid gap-6 lg:grid-cols-2 lg:items-start"}>
             <div className="min-w-0 space-y-2">
               {masterProfileCv.trim().length > 0 && (
                 <div className="flex justify-end">
@@ -368,13 +375,13 @@ const Index = () => {
               />
             </div>
 
-            <JobSpecInput
+            {!batchMode && <JobSpecInput
               value={jobSpecText}
               onChange={setJobSpecText}
               onError={handleError}
               rememberJobSpec={rememberJobSpec}
               onRememberChange={setRememberJobSpec}
-            />
+            />}
           </div>
 
           <TailorSection
@@ -387,6 +394,27 @@ const Index = () => {
             apiWorkload={apiWorkload}
             setApiWorkload={setApiWorkload}
           />
+
+          <div hidden={!batchMode}><BatchTailor
+            apiKey={currentApi.apiKey}
+            provider={selectedModel}
+            modelId={selectedModelId}
+            thinkingLevel={thinkingLevel}
+            cvText={cvText}
+            generate={(spec) => apiCallers[selectedModel](currentApi.apiKey, cvText, spec, keywords, styles, coverLetterStyle, apiWorkload, selectedModelId, thinkingLevel)}
+            save={async (job, result, groupLabel) => {
+              await createApplication({
+                company: job.company.trim() || "Target Company",
+                roleTitle: job.title.trim() || "Target Role",
+                jobUrl: job.url.trim() || undefined, jobSpecText: job.text, status: "drafting",
+                matchPercentage: result.match_percentage, matchingHighlights: result.matching_highlights, missingSkills: result.missing_skills,
+                tailoredCv: result.tailored_cv, coverLetter: result.cover_letter ?? "", interviewQna: result.interview_qna ?? [], industryUpdates: result.industry_updates ?? [],
+                notes: [job.postedDate && `Posted: ${job.postedDate}`, job.closingDate && `Closing: ${job.closingDate}`].filter(Boolean).join("\n"),
+                cvVersions: [{ id: crypto.randomUUID(), label: groupLabel, tailoredCv: result.tailored_cv, coverLetter: result.cover_letter ?? "", createdAt: new Date().toISOString() }],
+              });
+              toast({ title: "Saved to Application Board", description: "Your job and tailored results have been saved." });
+            }}
+          /></div>
 
           {/* Error banner */}
           <AnimatePresence>
@@ -404,17 +432,17 @@ const Index = () => {
           </AnimatePresence>
 
           {/* Generate button */}
-          <div className="w-full">
+          {!batchMode && <div className="w-full">
             <GenerateButton
               loading={loading}
               missingRequirements={missingRequirements}
               onGenerate={onGenerate}
             />
-          </div>
+          </div>}
         </motion.section>
 
         {/* Output section */}
-        <section className="mt-10">
+        {!batchMode && <section className="mt-10">
           <AnimatePresence mode="wait">
             {loading && (
               <motion.div
@@ -445,7 +473,7 @@ const Index = () => {
               </motion.div>
             )}
           </AnimatePresence>
-        </section>
+        </section>}
       </main>
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
